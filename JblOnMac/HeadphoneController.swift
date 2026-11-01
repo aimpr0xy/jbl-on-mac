@@ -59,6 +59,9 @@ final class HeadphoneController: NSObject {
     /// connection. Seeded with the identifier seen for the "JBL Tune Beam 2" on this Mac.
     @ObservationIgnored private var failedAttempts = 0
     @ObservationIgnored private var connectAttempt = 0
+    /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
+    /// that would tear down the fresh attempt.
+    @ObservationIgnored private var expectedDisconnects: Set<UUID> = []
     @ObservationIgnored private var rememberedIdentifier: UUID? {
         get {
             let stored = UserDefaults.standard.string(forKey: "lePeripheralIdentifier")
@@ -222,6 +225,7 @@ final class HeadphoneController: NSObject {
             connectToHeadphones(match)
             return
         }
+        armWatchdog()
         central.scanForPeripherals(withServices: nil)
     }
 
@@ -241,14 +245,20 @@ final class HeadphoneController: NSObject {
         } else {
             central.connect(peripheral)
         }
-        // A connection attempt can hang forever (e.g. stale identifier, or the headphones
-        // still busy with another link), so cancel it and try again after a while.
+        armWatchdog()
+    }
+
+    /// Any attempt can hang forever (stale identifier, headphones still busy with another link,
+    /// a scan that never delivers a result, services that never show up), so if we're not
+    /// connected after a while, tear everything down and start over.
+    private func armWatchdog() {
         connectAttempt += 1
         let attempt = connectAttempt
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
-            guard let self, self.connectAttempt == attempt, self.status == .connecting,
+            guard let self, self.connectAttempt == attempt, self.status != .connected,
                   self.selectedDevice != nil else { return }
+            log.notice("watchdog: attempt timed out, restarting")
             self.failedAttempts += 1
             self.disconnect()
             self.startScanning()
@@ -258,6 +268,7 @@ final class HeadphoneController: NSObject {
     private func disconnect() {
         central.stopScan()
         if let peripheral {
+            expectedDisconnects.insert(peripheral.identifier)
             central.cancelPeripheralConnection(peripheral)
         }
         peripheral = nil
@@ -320,6 +331,7 @@ extension HeadphoneController: @preconcurrency CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         rememberedIdentifier = peripheral.identifier
+        expectedDisconnects.remove(peripheral.identifier)
         failedAttempts = 0
         peripheral.discoverServices(nil)
     }
@@ -332,6 +344,7 @@ extension HeadphoneController: @preconcurrency CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
+        if expectedDisconnects.remove(peripheral.identifier) != nil { return }
         // Ignore the late callback for a link we already replaced with a new attempt.
         if let current = self.peripheral, current !== peripheral { return }
         writeCharacteristic = nil
