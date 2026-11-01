@@ -130,6 +130,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             backHeader(for: device) { EmptyView() }
 
+            batteryRow
             ForEach(ListeningMode.allCases) { option in
                 SelectableRow(
                     systemImage: option.systemImage,
@@ -141,6 +142,30 @@ struct ContentView: View {
                     headphones.select(option)
                 }
             }
+        }
+    }
+
+    /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.
+    @ViewBuilder
+    private var batteryRow: some View {
+        let levels: [(label: String, symbol: String, percent: Int?)] = [
+            ("Left", "l.circle", headphones.leftBattery),
+            ("Right", "r.circle", headphones.rightBattery),
+            ("Case", "earbuds.case", headphones.caseBattery),
+        ]
+        if levels.contains(where: { $0.percent != nil }) {
+            HStack(spacing: 14) {
+                ForEach(levels, id: \.label) { level in
+                    if let percent = level.percent {
+                        Label("\(percent)%", systemImage: level.symbol)
+                            .accessibilityLabel("\(level.label) \(percent) percent")
+                    }
+                }
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
     }
 

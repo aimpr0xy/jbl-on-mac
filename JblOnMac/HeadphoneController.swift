@@ -18,6 +18,8 @@ struct JBLDevice: Identifiable, Hashable {
 /// selected one over BLE using the protocol observed in the Packet Logger capture of the JBL app:
 ///   service characteristics  ...6F6D0002 (write)  /  ...6F6D0001 (notify)
 ///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>
+///   battery query            AA 06 05 00 01 00 1A 00 1B  (and AA 06 03 00 01 00 1C)
+///   battery reply            AA 06 .. 00 02 00 | <id> 02 00 <percent> [00] ...  (1A left, 1B right, 1C case)
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -33,6 +35,10 @@ final class HeadphoneController: NSObject {
     private(set) var selectedDevice: JBLDevice?
     private(set) var status: Status = .idle
     private(set) var selectedMode: ListeningMode?
+    /// Battery percentages reported by the headphones; nil until reported.
+    private(set) var leftBattery: Int?
+    private(set) var rightBattery: Int?
+    private(set) var caseBattery: Int?
     /// Address of the device currently being paired / connected from the list.
     private(set) var connectingAddress: String?
     private(set) var connectionError: String?
@@ -153,6 +159,7 @@ final class HeadphoneController: NSObject {
         stopDiscovery()
         selectedDevice = device
         selectedMode = nil
+        clearBattery()
         startScanning()
     }
 
@@ -161,6 +168,7 @@ final class HeadphoneController: NSObject {
         disconnect()
         selectedDevice = nil
         selectedMode = nil
+        clearBattery()
         status = .idle
         startDiscovery()
     }
@@ -176,6 +184,12 @@ final class HeadphoneController: NSObject {
                            0x03, flags[2]])
         peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
         selectedMode = mode
+    }
+
+    private func clearBattery() {
+        leftBattery = nil
+        rightBattery = nil
+        caseBattery = nil
     }
 
     private func startScanning() {
@@ -348,14 +362,40 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         guard characteristic.uuid == notifyUUID, characteristic.isNotifying,
               let writeCharacteristic else { return }
         peripheral.writeValue(Data([0xAA, 0x91, 0x01, 0x11]), for: writeCharacteristic, type: .withResponse)
+        // Ask for the left / right earbud and case battery levels.
+        peripheral.writeValue(Data([0xAA, 0x06, 0x05, 0x00, 0x01, 0x00, 0x1A, 0x00, 0x1B]),
+                              for: writeCharacteristic, type: .withResponse)
+        peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x1C]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Battery replies (and later unsolicited updates) are `AA 06 <len> 00 02 00` followed by
+    /// entries of `<id> 02 00 <percent>`, optionally separated by a `00` byte.
+    private func parseBattery(_ bytes: [UInt8]) {
+        guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x06, bytes[4] == 0x02 else { return }
+        var index = 6
+        while index + 3 < bytes.count {
+            let percent = Int(bytes[index + 3])
+            if percent <= 100 {
+                switch bytes[index] {
+                case 0x1A: leftBattery = percent
+                case 0x1B: rightBattery = percent
+                case 0x1C: caseBattery = percent
+                default: break
+                }
+            }
+            index += 4
+            if index < bytes.count, bytes[index] == 0 { index += 1 }
+        }
     }
 
     /// The headphones report the active mode as `AA 91 09 12 01 <NC> 02 <Ambient> 03 <TalkThru> 04 07`,
     /// both when asked and after a change.
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard characteristic.uuid == notifyUUID, let bytes = characteristic.value.map([UInt8].init),
-              bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
+        guard characteristic.uuid == notifyUUID, let bytes = characteristic.value.map([UInt8].init) else { return }
+        parseBattery(bytes)
+        guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]
         guard let index = flags.firstIndex(of: 1) else { return }
         selectedMode = ListeningMode.allCases[index]
