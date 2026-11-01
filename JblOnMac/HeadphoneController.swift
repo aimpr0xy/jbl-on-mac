@@ -17,7 +17,7 @@ struct JBLDevice: Identifiable, Hashable {
 /// Discovers nearby JBL products, connects them through macOS Bluetooth, and talks to the
 /// selected one over BLE using the protocol observed in the Packet Logger capture of the JBL app:
 ///   service characteristics  ...6F6D0002 (write)  /  ...6F6D0001 (notify)
-///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>
+///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>   (all 0 = off)
 ///   level write              AA 91 03 20 | <A1 ambient | 04 noise canceling> <1...7>
 ///   level query              AA 91 01 21 (assumed from the 10/11/12 pattern)
 ///   level reply              AA 91 05 22 | 04 <NC> | A1 <Ambient>   (also sent after a change)
@@ -196,8 +196,9 @@ final class HeadphoneController: NSObject {
     /// Sends the ambient sound command for the given mode.
     func select(_ mode: ListeningMode) {
         guard let peripheral, let writeCharacteristic else { return }
-        // Exactly one of the three flags is set to 1, matching the app's capture.
-        let flags: [UInt8] = ListeningMode.allCases.map { $0 == mode ? 1 : 0 }
+        // At most one of the three flags is set to 1, matching the app's capture;
+        // Off clears all of them.
+        let flags: [UInt8] = ListeningMode.flagged.map { $0 == mode ? 1 : 0 }
         let packet = Data([0xAA, 0x91, 0x07, 0x10,
                            0x01, flags[0],
                            0x02, flags[1],
@@ -220,7 +221,7 @@ final class HeadphoneController: NSObject {
             guard ambientAwareLevel != level else { return }
             id = 0xA1
             ambientAwareLevel = level
-        case .talkThru:
+        case .talkThru, .off:
             return
         }
         peripheral.writeValue(Data([0xAA, 0x91, 0x03, 0x20, id, UInt8(level)]),
@@ -384,12 +385,14 @@ extension HeadphoneController: @preconcurrency CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
+        log.notice("didFailToConnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
         failedAttempts += 1
         retryConnecting()
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
+        log.notice("didDisconnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public) expected=\(self.expectedDisconnects.contains(peripheral.identifier))")
         if expectedDisconnects.remove(peripheral.identifier) != nil { return }
         // Ignore the late callback for a link we already replaced with a new attempt.
         if let current = self.peripheral, current !== peripheral { return }
@@ -489,8 +492,8 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]
-        guard let index = flags.firstIndex(of: 1) else { return }
-        selectedMode = ListeningMode.allCases[index]
+        // All flags cleared means ambient sound control is off.
+        selectedMode = flags.firstIndex(of: 1).map { ListeningMode.flagged[$0] } ?? .off
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
