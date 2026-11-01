@@ -16,6 +16,32 @@ enum ListeningMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// Raw values are the mode bytes seen in the JBL app's capture (1, 2, 3 while cycling through
+/// the options; 1 was the initial state).
+enum SpatialAudioMode: UInt8, CaseIterable, Identifiable {
+    case off = 1
+    case fixed = 2
+    case headTracking = 3
+
+    var id: UInt8 { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .fixed: "Fixed"
+        case .headTracking: "Head Tracking"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .off: "speaker.slash"
+        case .fixed: "person.spatialaudio.stereo.fill"
+        case .headTracking: "person.spatialaudio.3d.fill"
+        }
+    }
+}
+
 /// Styled after the Bluetooth and Sound menus in Control Center: a bold header, circular
 /// icon badges that fill with the accent color when active.
 struct ContentView: View {
@@ -131,6 +157,8 @@ struct ContentView: View {
             backHeader(for: device) { EmptyView() }
 
             batteryRow
+
+            sectionTitle("Ambient Sound Control")
             ForEach(ListeningMode.allCases) { option in
                 SelectableRow(
                     systemImage: option.systemImage,
@@ -142,7 +170,33 @@ struct ContentView: View {
                     headphones.select(option)
                 }
             }
+
+            // Only shown once the headphones report a spatial audio state, so models
+            // without the feature don't get a dead section.
+            if headphones.selectedSpatialMode != nil {
+                sectionTitle("Spatial Audio")
+                    .padding(.top, 8)
+                ForEach(SpatialAudioMode.allCases) { option in
+                    SelectableRow(
+                        systemImage: option.systemImage,
+                        title: option.title,
+                        isActive: headphones.selectedSpatialMode == option
+                    ) {
+                        EmptyView()
+                    } action: {
+                        headphones.select(option)
+                    }
+                }
+            }
         }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 2)
     }
 
     /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.

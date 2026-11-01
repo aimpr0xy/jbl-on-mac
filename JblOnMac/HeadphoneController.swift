@@ -20,6 +20,9 @@ struct JBLDevice: Identifiable, Hashable {
 ///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>
 ///   battery query            AA 06 05 00 01 00 1A 00 1B  (and AA 06 03 00 01 00 1C)
 ///   battery reply            AA 06 .. 00 02 00 | <id> 02 00 <percent> [00] ...  (1A left, 1B right, 1C case)
+///   spatial audio write      AA 06 06 00 00 00 0C 02 01 <Mode>
+///   spatial audio query      AA 06 03 00 01 00 0C
+///   spatial audio reply      AA 06 06 00 02 00 0C 02 <00|01> <Mode>   (also sent after a change)
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -35,6 +38,8 @@ final class HeadphoneController: NSObject {
     private(set) var selectedDevice: JBLDevice?
     private(set) var status: Status = .idle
     private(set) var selectedMode: ListeningMode?
+    /// Spatial audio mode reported by the headphones; nil until reported.
+    private(set) var selectedSpatialMode: SpatialAudioMode?
     /// Battery percentages reported by the headphones; nil until reported.
     private(set) var leftBattery: Int?
     private(set) var rightBattery: Int?
@@ -162,6 +167,7 @@ final class HeadphoneController: NSObject {
         stopDiscovery()
         selectedDevice = device
         selectedMode = nil
+        selectedSpatialMode = nil
         clearBattery()
         startScanning()
     }
@@ -171,6 +177,7 @@ final class HeadphoneController: NSObject {
         disconnect()
         selectedDevice = nil
         selectedMode = nil
+        selectedSpatialMode = nil
         clearBattery()
         status = .idle
         startDiscovery()
@@ -187,6 +194,14 @@ final class HeadphoneController: NSObject {
                            0x03, flags[2]])
         peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
         selectedMode = mode
+    }
+
+    /// Sends the spatial audio command for the given mode.
+    func select(_ spatial: SpatialAudioMode) {
+        guard let peripheral, let writeCharacteristic else { return }
+        let packet = Data([0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0C, 0x02, 0x01, spatial.rawValue])
+        peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
+        selectedSpatialMode = spatial
     }
 
     private func clearBattery() {
@@ -380,6 +395,16 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
                               for: writeCharacteristic, type: .withResponse)
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x1C]),
                               for: writeCharacteristic, type: .withResponse)
+        // And which spatial audio mode is active.
+        peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x0C]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Spatial audio replies are `AA 06 06 00 02 00 0C 02 <00|01> <mode>`.
+    private func parseSpatialAudio(_ bytes: [UInt8]) {
+        guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x06, bytes[4] == 0x02,
+              bytes[6] == 0x0C, let mode = SpatialAudioMode(rawValue: bytes[9]) else { return }
+        selectedSpatialMode = mode
     }
 
     /// Battery replies (and later unsolicited updates) are `AA 06 <len> 00 02 00` followed by
@@ -408,6 +433,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
                     didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == notifyUUID, let bytes = characteristic.value.map([UInt8].init) else { return }
         parseBattery(bytes)
+        parseSpatialAudio(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]
         guard let index = flags.firstIndex(of: 1) else { return }
