@@ -26,6 +26,9 @@ struct JBLDevice: Identifiable, Hashable {
 ///   spatial audio write      AA 06 06 00 00 00 0C 02 01 <Mode>
 ///   spatial audio query      AA 06 03 00 01 00 0C
 ///   spatial audio reply      AA 06 06 00 02 00 0C 02 <00|01> <Mode>   (also sent after a change)
+///   smart audio/video write  AA 80 09 00 | <8 payload bytes, see SmartAudioMode>
+///   smart audio/video query  AA 80 01 01
+///   smart audio/video reply  AA 80 09 02 | <8 payload bytes>   (also sent after a change)
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -43,6 +46,8 @@ final class HeadphoneController: NSObject {
     private(set) var selectedMode: ListeningMode?
     /// Spatial audio mode reported by the headphones; nil until reported.
     private(set) var selectedSpatialMode: SpatialAudioMode?
+    /// Smart audio and video mode reported by the headphones; nil until reported.
+    private(set) var selectedSmartMode: SmartAudioMode?
     /// Noise canceling and ambient aware strength (1...7); nil until reported.
     private(set) var noiseCancelingLevel: Int?
     private(set) var ambientAwareLevel: Int?
@@ -174,6 +179,7 @@ final class HeadphoneController: NSObject {
         selectedDevice = device
         selectedMode = nil
         selectedSpatialMode = nil
+        selectedSmartMode = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -186,6 +192,7 @@ final class HeadphoneController: NSObject {
         selectedDevice = nil
         selectedMode = nil
         selectedSpatialMode = nil
+        selectedSmartMode = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -234,6 +241,14 @@ final class HeadphoneController: NSObject {
         let packet = Data([0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0C, 0x02, 0x01, spatial.rawValue])
         peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
         selectedSpatialMode = spatial
+    }
+
+    /// Sends the smart audio and video command for the given mode.
+    func select(_ smart: SmartAudioMode) {
+        guard let peripheral, let writeCharacteristic else { return }
+        let packet = Data([0xAA, 0x80, 0x09, 0x00] + smart.payload)
+        peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
+        selectedSmartMode = smart
     }
 
     private func clearBattery() {
@@ -430,6 +445,8 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
                               for: writeCharacteristic, type: .withResponse)
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x1C]),
                               for: writeCharacteristic, type: .withResponse)
+        // And which smart audio and video mode is active.
+        peripheral.writeValue(Data([0xAA, 0x80, 0x01, 0x01]), for: writeCharacteristic, type: .withResponse)
         // And which spatial audio mode is active.
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x0C]),
                               for: writeCharacteristic, type: .withResponse)
@@ -462,6 +479,13 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         selectedSpatialMode = mode
     }
 
+    /// Smart audio and video replies are `AA 80 09 02` followed by the 8 payload bytes.
+    private func parseSmartAudio(_ bytes: [UInt8]) {
+        guard bytes.count >= 12, bytes[0] == 0xAA, bytes[1] == 0x80, bytes[2] == 0x09,
+              bytes[3] == 0x02, let mode = SmartAudioMode(payload: Array(bytes[4..<12])) else { return }
+        selectedSmartMode = mode
+    }
+
     /// Battery replies (and later unsolicited updates) are `AA 06 <len> 00 02 00` followed by
     /// entries of `<id> 02 00 <percent>`, optionally separated by a `00` byte.
     private func parseBattery(_ bytes: [UInt8]) {
@@ -489,6 +513,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         guard characteristic.uuid == notifyUUID, let bytes = characteristic.value.map([UInt8].init) else { return }
         parseBattery(bytes)
         parseSpatialAudio(bytes)
+        parseSmartAudio(bytes)
         parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]
