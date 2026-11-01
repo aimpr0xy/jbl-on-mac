@@ -18,7 +18,10 @@ struct JBLDevice: Identifiable, Hashable {
 /// selected one over BLE using the protocol observed in the Packet Logger capture of the JBL app:
 ///   service characteristics  ...6F6D0002 (write)  /  ...6F6D0001 (notify)
 ///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>
-///   battery query            AA 06 05 00 01 00 1A 00 1B  (and AA 06 03 00 01 00 1C)
+///   level write              AA 91 03 20 | <A1 ambient | 04 noise canceling> <1...7>
+///   level query              AA 91 01 21 (assumed from the 10/11/12 pattern)
+///   level reply              AA 91 05 22 | 04 <NC> | A1 <Ambient>   (also sent after a change)
+///   battery query          AA 06 05 00 01 00 1A 00 1B  (and AA 06 03 00 01 00 1C)
 ///   battery reply            AA 06 .. 00 02 00 | <id> 02 00 <percent> [00] ...  (1A left, 1B right, 1C case)
 ///   spatial audio write      AA 06 06 00 00 00 0C 02 01 <Mode>
 ///   spatial audio query      AA 06 03 00 01 00 0C
@@ -40,6 +43,9 @@ final class HeadphoneController: NSObject {
     private(set) var selectedMode: ListeningMode?
     /// Spatial audio mode reported by the headphones; nil until reported.
     private(set) var selectedSpatialMode: SpatialAudioMode?
+    /// Noise canceling and ambient aware strength (1...7); nil until reported.
+    private(set) var noiseCancelingLevel: Int?
+    private(set) var ambientAwareLevel: Int?
     /// Battery percentages reported by the headphones; nil until reported.
     private(set) var leftBattery: Int?
     private(set) var rightBattery: Int?
@@ -168,6 +174,8 @@ final class HeadphoneController: NSObject {
         selectedDevice = device
         selectedMode = nil
         selectedSpatialMode = nil
+        noiseCancelingLevel = nil
+        ambientAwareLevel = nil
         clearBattery()
         startScanning()
     }
@@ -178,6 +186,8 @@ final class HeadphoneController: NSObject {
         selectedDevice = nil
         selectedMode = nil
         selectedSpatialMode = nil
+        noiseCancelingLevel = nil
+        ambientAwareLevel = nil
         clearBattery()
         status = .idle
         startDiscovery()
@@ -194,6 +204,27 @@ final class HeadphoneController: NSObject {
                            0x03, flags[2]])
         peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
         selectedMode = mode
+    }
+
+    /// Sets the strength (1...7) of noise canceling or ambient aware.
+    func setLevel(_ level: Int, for mode: ListeningMode) {
+        guard let peripheral, let writeCharacteristic else { return }
+        let level = min(max(level, 1), 7)
+        let id: UInt8
+        switch mode {
+        case .noiseCanceling:
+            guard noiseCancelingLevel != level else { return }
+            id = 0x04
+            noiseCancelingLevel = level
+        case .ambientAware:
+            guard ambientAwareLevel != level else { return }
+            id = 0xA1
+            ambientAwareLevel = level
+        case .talkThru:
+            return
+        }
+        peripheral.writeValue(Data([0xAA, 0x91, 0x03, 0x20, id, UInt8(level)]),
+                              for: writeCharacteristic, type: .withResponse)
     }
 
     /// Sends the spatial audio command for the given mode.
@@ -390,6 +421,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         guard characteristic.uuid == notifyUUID, characteristic.isNotifying,
               let writeCharacteristic else { return }
         peripheral.writeValue(Data([0xAA, 0x91, 0x01, 0x11]), for: writeCharacteristic, type: .withResponse)
+        peripheral.writeValue(Data([0xAA, 0x91, 0x01, 0x21]), for: writeCharacteristic, type: .withResponse)
         // Ask for the left / right earbud and case battery levels.
         peripheral.writeValue(Data([0xAA, 0x06, 0x05, 0x00, 0x01, 0x00, 0x1A, 0x00, 0x1B]),
                               for: writeCharacteristic, type: .withResponse)
@@ -398,6 +430,26 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         // And which spatial audio mode is active.
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x0C]),
                               for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Level replies are `AA 91 05 22` followed by `<id> <level>` pairs (04 = noise canceling,
+    /// A1 = ambient aware). The mode report `AA 91 09 12 ... 04 <level>` also carries the NC level.
+    private func parseLevels(_ bytes: [UInt8]) {
+        guard bytes.count >= 6, bytes[0] == 0xAA, bytes[1] == 0x91 else { return }
+        var index: Int
+        switch bytes[3] {
+        case 0x22: index = 4
+        case 0x12: index = 10
+        default: return
+        }
+        while index + 1 < bytes.count {
+            let level = Int(bytes[index + 1])
+            if (1...7).contains(level) {
+                if bytes[index] == 0x04 { noiseCancelingLevel = level }
+                if bytes[index] == 0xA1 { ambientAwareLevel = level }
+            }
+            index += 2
+        }
     }
 
     /// Spatial audio replies are `AA 06 06 00 02 00 0C 02 <00|01> <mode>`.
@@ -434,6 +486,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         guard characteristic.uuid == notifyUUID, let bytes = characteristic.value.map([UInt8].init) else { return }
         parseBattery(bytes)
         parseSpatialAudio(bytes)
+        parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]
         guard let index = flags.firstIndex(of: 1) else { return }

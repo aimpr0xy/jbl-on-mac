@@ -7,6 +7,9 @@ enum ListeningMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Whether the headphones have an adjustable strength for this mode.
+    var hasLevel: Bool { self != .talkThru }
+
     var systemImage: String {
         switch self {
         case .noiseCanceling: "waveform.slash"
@@ -46,20 +49,29 @@ enum SpatialAudioMode: UInt8, CaseIterable, Identifiable {
 /// icon badges that fill with the accent color when active.
 struct ContentView: View {
     let headphones: HeadphoneController
+    /// Mode whose strength screen is showing, if any.
+    @State private var detailMode: ListeningMode?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // The noise control options only open once the headphones are connected; until
             // then the picked device stays in the list and its row shows the progress.
             if let device = headphones.selectedDevice, headphones.status == .connected {
-                modeControls(for: device)
-                    .transition(.opacity)
+                if let mode = detailMode {
+                    levelScreen(for: mode)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else {
+                    modeControls(for: device)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
             } else {
                 deviceList
                     .transition(.opacity)
             }
         }
         .animation(.snappy, value: headphones.status == .connected)
+        .animation(.snappy, value: detailMode)
+        .clipped()
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
         .frame(width: 280)
@@ -165,7 +177,9 @@ struct ContentView: View {
                     title: option.rawValue,
                     isActive: headphones.selectedMode == option
                 ) {
-                    EmptyView()
+                    if option.hasLevel {
+                        chevron(for: option)
+                    }
                 } action: {
                     headphones.select(option)
                 }
@@ -189,6 +203,67 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    /// Opens the strength screen for a mode.
+    private func chevron(for mode: ListeningMode) -> some View {
+        Button {
+            detailMode = mode
+        } label: {
+            Image(systemName: "chevron.right")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(mode.rawValue) level")
+    }
+
+    /// Second screen with the strength slider for one mode, reached from the row's chevron.
+    private func levelScreen(for mode: ListeningMode) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Button {
+                    detailMode = nil
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.callout.weight(.semibold))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+
+                Text(mode.rawValue)
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            levelSlider(for: mode)
+        }
+    }
+
+    /// Strength slider (1...7) for noise canceling or ambient aware.
+    private func levelSlider(for mode: ListeningMode) -> some View {
+        let binding = Binding<Double>(
+            get: {
+                Double((mode == .noiseCanceling ? headphones.noiseCancelingLevel
+                                                : headphones.ambientAwareLevel) ?? 4)
+            },
+            set: { headphones.setLevel(Int($0), for: mode) }
+        )
+        return HStack(spacing: 8) {
+            Image(systemName: "speaker.wave.1").foregroundStyle(.secondary)
+            Slider(value: binding, in: 1...7, step: 1)
+            Image(systemName: "speaker.wave.3").foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 4)
+        .accessibilityLabel("\(mode.rawValue) level")
     }
 
     private func sectionTitle(_ title: String) -> some View {
