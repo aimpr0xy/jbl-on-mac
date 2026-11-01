@@ -1,0 +1,236 @@
+import SwiftUI
+
+enum ListeningMode: String, CaseIterable, Identifiable {
+    case noiseCanceling = "Noise Canceling"
+    case ambientAware = "Ambient Aware"
+    case talkThru = "Talk Thru"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .noiseCanceling: "waveform.slash"
+        case .ambientAware: "ear"
+        case .talkThru: "person.wave.2"
+        }
+    }
+}
+
+/// Styled after the Bluetooth and Sound menus in Control Center: a bold header, circular
+/// icon badges that fill with the accent color when active.
+struct ContentView: View {
+    let headphones: HeadphoneController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // The noise control options only open once the headphones are connected; until
+            // then the picked device stays in the list and its row shows the progress.
+            if let device = headphones.selectedDevice, headphones.status == .connected {
+                modeControls(for: device)
+                    .transition(.opacity)
+            } else {
+                deviceList
+                    .transition(.opacity)
+            }
+        }
+        .animation(.snappy, value: headphones.status == .connected)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .frame(width: 280)
+        .task {
+            // Look for nearby JBL products and keep the list fresh while the popup is open.
+            headphones.startDiscovery()
+            while !Task.isCancelled {
+                headphones.refreshDevices()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+        .onDisappear { headphones.stopDiscovery() }
+    }
+
+    // MARK: - Device list
+
+    private var deviceList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header("JBL on Mac") {
+                EmptyView()
+            }
+
+            if headphones.devices.isEmpty {
+                Text("Searching for nearby JBL products…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+            }
+
+            ForEach(headphones.devices) { device in
+                deviceRow(device)
+            }
+
+            if let error = headphones.connectionError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+            }
+
+        }
+    }
+
+    /// Clicking a device connects it (pairing first if needed) and, once connected, opens its
+    /// controls. Progress is shown in the row's description instead of a separate screen.
+    private func deviceRow(_ device: JBLDevice) -> some View {
+        let isPairing = headphones.connectingAddress == device.address
+        let isOpening = headphones.selectedDevice?.address == device.address
+        let isBusy = isPairing || isOpening
+        return SelectableRow(
+            systemImage: "headphones",
+            title: device.name,
+            subtitle: subtitle(for: device, isPairing: isPairing, isOpening: isOpening),
+            isActive: device.isConnected
+        ) {
+            if isBusy, headphones.status != .bluetoothOff, headphones.status != .unauthorized {
+                ProgressView().controlSize(.small)
+            } else if device.isConnected {
+                Image(systemName: "chevron.right")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        } action: {
+            if isOpening {
+                // Tapping a device that's still connecting cancels it.
+                headphones.deselect()
+            } else if device.isConnected {
+                headphones.select(device)
+            } else {
+                headphones.connect(device)
+            }
+        }
+        .disabled((headphones.connectingAddress != nil && !isPairing)
+                  || (headphones.selectedDevice != nil && !isOpening))
+    }
+
+    private func subtitle(for device: JBLDevice, isPairing: Bool, isOpening: Bool) -> String? {
+        if isPairing { return "Connecting…" }
+        if isOpening {
+            switch headphones.status {
+            case .bluetoothOff: return "Bluetooth is off"
+            case .unauthorized: return "Allow Bluetooth in System Settings"
+            default: return "Connecting…"
+            }
+        }
+        return device.isConnected ? nil : "Not Connected"
+    }
+
+    // MARK: - Device screen
+
+    private func modeControls(for device: JBLDevice) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            backHeader(for: device) { EmptyView() }
+
+            ForEach(ListeningMode.allCases) { option in
+                SelectableRow(
+                    systemImage: option.systemImage,
+                    title: option.rawValue,
+                    isActive: headphones.selectedMode == option
+                ) {
+                    EmptyView()
+                } action: {
+                    headphones.select(option)
+                }
+            }
+        }
+    }
+
+    // MARK: - Pieces
+
+    private func header<Trailing: View>(_ title: String,
+                                        @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+    }
+
+    private func backHeader<Trailing: View>(for device: JBLDevice,
+                                            @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                headphones.deselect()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.callout.weight(.semibold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to devices")
+
+            Text(device.name)
+                .font(.headline)
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+    }
+
+}
+
+/// A Control Center–style row: a circular icon badge (accent-filled when active), a title,
+/// and an optional trailing view. The whole row is the click target and highlights on hover.
+private struct SelectableRow<Trailing: View>: View {
+    let systemImage: String
+    let title: String
+    var subtitle: String?
+    let isActive: Bool
+    @ViewBuilder let trailing: Trailing
+    let action: () -> Void
+
+    @State private var isHovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isActive ? Color.white : Color.primary)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary)))
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+                trailing
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovering && isEnabled ? Color.primary.opacity(0.08) : .clear)
+            )
+            .opacity(isEnabled ? 1 : 0.5)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
+#Preview {
+    ContentView(headphones: HeadphoneController())
+}
