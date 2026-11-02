@@ -99,6 +99,43 @@ final class HeadphoneController: NSObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.disconnect() }
         }
+        selectLastDeviceIfConnected()
+    }
+
+    // MARK: - Remembering the last device
+
+    private static let lastDeviceKey = "lastDevice"
+
+    /// Name and classic Bluetooth address of the last device that connected successfully.
+    private var lastDevice: (name: String, address: String)? {
+        get {
+            guard let stored = UserDefaults.standard.dictionary(forKey: Self.lastDeviceKey) as? [String: String],
+                  let name = stored["name"], let address = stored["address"] else { return nil }
+            return (name, address)
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(["name": newValue.name, "address": newValue.address],
+                                          forKey: Self.lastDeviceKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastDeviceKey)
+            }
+        }
+    }
+
+    /// Records the selected device as the one to reopen on the next launch.
+    func rememberSelectedDevice() {
+        guard let device = selectedDevice else { return }
+        lastDevice = (device.name, device.address)
+    }
+
+    /// On launch, reopens the last used headphones if macOS still has them connected. Headphones
+    /// that are off or away are left alone, so the app doesn't retry a link that can't succeed.
+    private func selectLastDeviceIfConnected() {
+        guard let last = lastDevice,
+              let target = IOBluetoothDevice(addressString: last.address),
+              target.isPaired(), target.isConnected() else { return }
+        select(JBLDevice(name: last.name, address: last.address, isConnected: true))
     }
 
     // MARK: - Selecting a device and controlling it over BLE
@@ -114,8 +151,10 @@ final class HeadphoneController: NSObject {
         startScanning()
     }
 
-    /// Goes back to the device list.
-    func deselect() {
+    /// Goes back to the device list. By default this also forgets the last device, so it isn't
+    /// reopened on the next launch; failed connection attempts keep it.
+    func deselect(forgetLastDevice: Bool = true) {
+        if forgetLastDevice { lastDevice = nil }
         disconnect()
         selectedDevice = nil
         state = DeviceState()
@@ -339,7 +378,7 @@ final class HeadphoneController: NSObject {
     func giveUpConnecting() {
         let name = selectedDevice?.name ?? "the headphones"
         log.notice("giving up after \(self.failedAttempts) failed attempts")
-        deselect()
+        deselect(forgetLastDevice: false)
         connectionError = "Couldn't reach \(name). Make sure it's turned on and nearby, then try again."
     }
 
