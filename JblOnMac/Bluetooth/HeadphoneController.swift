@@ -1,0 +1,326 @@
+import AppKit
+import CoreBluetooth
+import Foundation
+import IOBluetooth
+import os
+
+let log = Logger(subsystem: "JblOnMac", category: "BLE")
+
+/// Discovers nearby JBL products, connects them through macOS Bluetooth, and talks to the
+/// selected one over BLE. Packets are built by `JBLCommand` and decoded by `JBLReply`.
+@Observable
+final class HeadphoneController: NSObject {
+    enum Status: Equatable {
+        case idle
+        case bluetoothOff
+        case unauthorized
+        case scanning
+        case connecting
+        case connected
+    }
+
+    var devices: [JBLDevice] = []
+    var selectedDevice: JBLDevice?
+    var status: Status = .idle
+    var selectedMode: ListeningMode?
+    /// Spatial audio mode reported by the headphones; nil until reported.
+    var selectedSpatialMode: SpatialAudioMode?
+    /// Smart audio and video mode reported by the headphones; nil until reported.
+    var selectedSmartMode: SmartAudioMode?
+    /// Left / right sound balance (-16 left ... 16 right); nil until reported.
+    var balance: Int?
+    /// Whether the max volume limiter is on; nil until reported.
+    var volumeLimiterEnabled: Bool?
+    /// Call features reported by the headphones; nil until reported.
+    var soundLevelOptimizerEnabled: Bool?
+    var callSoundSetting: CallSoundSetting?
+    var callVoiceSetting: CallVoiceSetting?
+    var voiceAwareEnabled: Bool?
+    var voiceAwareLevel: VoiceAwareLevel?
+    /// Noise canceling and ambient aware strength (1...7); nil until reported.
+    var noiseCancelingLevel: Int?
+    var ambientAwareLevel: Int?
+    /// Battery percentages reported by the headphones; nil until reported.
+    var leftBattery: Int?
+    var rightBattery: Int?
+    var caseBattery: Int?
+    /// Address of the device currently being paired / connected from the list.
+    var connectingAddress: String?
+    var connectionError: String?
+
+    let writeUUID = JBLUUID.write
+    let notifyUUID = JBLUUID.notify
+
+    @ObservationIgnored var central: CBCentralManager!
+    @ObservationIgnored var peripheral: CBPeripheral?
+    @ObservationIgnored var writeCharacteristic: CBCharacteristic?
+
+    @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
+    @ObservationIgnored var isDiscovering = false
+    @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
+    @ObservationIgnored var pairing: IOBluetoothDevicePair?
+
+    /// Core Bluetooth identifier of the headphones' LE link, remembered after a successful
+    /// connection. Seeded with the identifier seen for the "JBL Tune Beam 2" on this Mac.
+    @ObservationIgnored var failedAttempts = 0
+    @ObservationIgnored var connectAttempt = 0
+    /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
+    /// that would tear down the fresh attempt.
+    @ObservationIgnored var expectedDisconnects: Set<UUID> = []
+    @ObservationIgnored var rememberedIdentifier: UUID? {
+        get {
+            let stored = UserDefaults.standard.string(forKey: "lePeripheralIdentifier")
+                ?? "4E7D3055-217E-77DB-AE69-E20CA1B97517"
+            return UUID(uuidString: stored)
+        }
+        set { UserDefaults.standard.set(newValue?.uuidString, forKey: "lePeripheralIdentifier") }
+    }
+
+    override init() {
+        super.init()
+        central = CBCentralManager(delegate: self, queue: .main)
+        // Release the headphones' single LE link cleanly on quit, so the next launch
+        // doesn't have to wait for the stale connection to time out.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.disconnect() }
+        }
+    }
+
+    // MARK: - Selecting a device and controlling it over BLE
+
+    /// Picks a connected headphone and opens its BLE link so its controls can be shown.
+    func select(_ device: JBLDevice) {
+        disconnect()
+        stopDiscovery()
+        selectedDevice = device
+        selectedMode = nil
+        selectedSpatialMode = nil
+        selectedSmartMode = nil
+        balance = nil
+        volumeLimiterEnabled = nil
+        noiseCancelingLevel = nil
+        ambientAwareLevel = nil
+        clearCallFeatures()
+        clearBattery()
+        startScanning()
+    }
+
+    /// Goes back to the device list.
+    func deselect() {
+        disconnect()
+        selectedDevice = nil
+        selectedMode = nil
+        selectedSpatialMode = nil
+        selectedSmartMode = nil
+        balance = nil
+        volumeLimiterEnabled = nil
+        noiseCancelingLevel = nil
+        ambientAwareLevel = nil
+        clearCallFeatures()
+        clearBattery()
+        status = .idle
+        startDiscovery()
+    }
+
+    /// Writes a command to the headphones; does nothing until the BLE link is ready.
+    func send(_ command: JBLCommand) {
+        guard let peripheral, let writeCharacteristic else { return }
+        peripheral.writeValue(Data(command.bytes), for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Whether the BLE link is ready for writes.
+    private var canSend: Bool { peripheral != nil && writeCharacteristic != nil }
+
+    /// Sends the ambient sound command for the given mode.
+    func select(_ mode: ListeningMode) {
+        guard canSend else { return }
+        send(.setListeningMode(mode))
+        selectedMode = mode
+    }
+
+    /// Sets the strength (1...7) of noise canceling or ambient aware.
+    func setLevel(_ level: Int, for mode: ListeningMode) {
+        guard canSend else { return }
+        let level = min(max(level, 1), 7)
+        switch mode {
+        case .noiseCanceling:
+            guard noiseCancelingLevel != level else { return }
+            noiseCancelingLevel = level
+        case .ambientAware:
+            guard ambientAwareLevel != level else { return }
+            ambientAwareLevel = level
+        case .talkThru, .off:
+            return
+        }
+        send(.setLevel(mode, level))
+    }
+
+    /// Sends the spatial audio command for the given mode.
+    func select(_ spatial: SpatialAudioMode) {
+        guard canSend else { return }
+        send(.setSpatialAudio(spatial))
+        selectedSpatialMode = spatial
+    }
+
+    /// Sends the smart audio and video command for the given mode.
+    func select(_ smart: SmartAudioMode) {
+        guard canSend else { return }
+        send(.setSmartAudio(smart))
+        selectedSmartMode = smart
+    }
+
+    /// Sets the left / right balance (-16 left ... 16 right).
+    func setBalance(_ value: Int) {
+        guard canSend else { return }
+        let value = min(max(value, -16), 16)
+        guard balance != value else { return }
+        balance = value
+        send(.setBalance(value))
+    }
+
+    /// Turns the max volume limiter on or off.
+    func setVolumeLimiter(_ enabled: Bool) {
+        guard canSend else { return }
+        volumeLimiterEnabled = enabled
+        send(.setVolumeLimiter(enabled))
+    }
+
+    /// Turns the sound level optimizer on or off.
+    func setSoundLevelOptimizer(_ enabled: Bool) {
+        guard canSend else { return }
+        soundLevelOptimizerEnabled = enabled
+        send(.setSoundLevelOptimizer(enabled))
+    }
+
+    /// Sets the sound character used during calls.
+    func select(_ setting: CallSoundSetting) {
+        guard canSend else { return }
+        callSoundSetting = setting
+        send(.setCallSound(setting))
+    }
+
+    /// Sets how your voice sounds to the other side of a call.
+    func select(_ setting: CallVoiceSetting) {
+        guard canSend else { return }
+        callVoiceSetting = setting
+        send(.setCallVoice(setting))
+    }
+
+    /// Turns voice aware on or off, keeping the current level (mid until one is known).
+    func setVoiceAware(enabled: Bool) {
+        writeVoiceAware(enabled: enabled, level: voiceAwareLevel ?? .mid)
+    }
+
+    /// Sets the voice aware level and turns it on.
+    func select(_ level: VoiceAwareLevel) {
+        writeVoiceAware(enabled: true, level: level)
+    }
+
+    func writeVoiceAware(enabled: Bool, level: VoiceAwareLevel) {
+        guard canSend else { return }
+        voiceAwareEnabled = enabled
+        voiceAwareLevel = level
+        send(.setVoiceAware(enabled: enabled, level: level))
+    }
+
+    func clearCallFeatures() {
+        soundLevelOptimizerEnabled = nil
+        callSoundSetting = nil
+        callVoiceSetting = nil
+        voiceAwareEnabled = nil
+        voiceAwareLevel = nil
+    }
+
+    func clearBattery() {
+        leftBattery = nil
+        rightBattery = nil
+        caseBattery = nil
+    }
+
+    func startScanning() {
+        log.notice("authorization=\(CBCentralManager.authorization.rawValue) state=\(self.central.state.rawValue)")
+        guard CBCentralManager.authorization == .allowedAlways else {
+            status = .unauthorized
+            return
+        }
+        guard central.state == .poweredOn else {
+            status = central.state == .unauthorized ? .unauthorized : .bluetoothOff
+            return
+        }
+        status = .scanning
+        // Scanning doesn't deliver any results on some Macs, but connecting to a peripheral
+        // by its remembered identifier does work, so keep retrying that.
+        if let id = rememberedIdentifier,
+           let match = central.retrievePeripherals(withIdentifiers: [id]).first {
+            log.notice("connecting to remembered peripheral \(id.uuidString, privacy: .public)")
+            // The identifier may be stale (the headphones can change their LE address),
+            // so after a couple of failures also scan for a new one.
+            if failedAttempts >= 2 { central.scanForPeripherals(withServices: nil) }
+            connectToHeadphones(match)
+            return
+        }
+        // The headphones may already hold a BLE link to the system (e.g. via the audio
+        // connection), in which case they don't advertise and a scan would never find them.
+        let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [CBUUID(string: "1800")])
+        log.notice("already connected: \(alreadyConnected.map { $0.name ?? "nil" }, privacy: .public), target=\(self.selectedDevice?.name ?? "nil", privacy: .public), state=\(self.central.state.rawValue)")
+        if let match = alreadyConnected.first(where: { matchesSelectedDevice(name: $0.name) }) {
+            connectToHeadphones(match)
+            return
+        }
+        armWatchdog()
+        central.scanForPeripherals(withServices: nil)
+    }
+
+    /// The BLE name can differ slightly from the classic Bluetooth name, so fall back to any JBL.
+    func matchesSelectedDevice(name: String?) -> Bool {
+        guard let name, let target = selectedDevice else { return false }
+        return name.caseInsensitiveCompare(target.name) == .orderedSame
+            || name.localizedCaseInsensitiveContains("JBL")
+    }
+
+    func connectToHeadphones(_ peripheral: CBPeripheral) {
+        self.peripheral = peripheral
+        peripheral.delegate = self
+        status = .connecting
+        if peripheral.state == .connected {
+            peripheral.discoverServices(nil)
+        } else {
+            central.connect(peripheral)
+        }
+        armWatchdog()
+    }
+
+    /// Any attempt can hang forever (stale identifier, headphones still busy with another link,
+    /// a scan that never delivers a result, services that never show up), so if we're not
+    /// connected after a while, tear everything down and start over.
+    func armWatchdog() {
+        connectAttempt += 1
+        let attempt = connectAttempt
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard let self, self.connectAttempt == attempt, self.status != .connected,
+                  self.selectedDevice != nil else { return }
+            log.notice("watchdog: attempt timed out, restarting")
+            self.failedAttempts += 1
+            self.disconnect()
+            self.startScanning()
+        }
+    }
+
+    func disconnect() {
+        central.stopScan()
+        if let peripheral {
+            expectedDisconnects.insert(peripheral.identifier)
+            central.cancelPeripheralConnection(peripheral)
+        }
+        peripheral = nil
+        writeCharacteristic = nil
+    }
+
+    /// Delegate callback for `IOBluetoothDevice.openConnection(_:)`.
+    @objc func connectionComplete(_ device: IOBluetoothDevice!, status: IOReturn) {
+        finishConnecting(error: status == kIOReturnSuccess ? nil : "Couldn't connect")
+    }
+}
