@@ -4,7 +4,7 @@ import SwiftUI
 /// and an optional trailing view. The whole row is the click target and highlights on hover.
 struct SelectableRow<Trailing: View>: View {
     let systemImage: String
-    let title: String
+    let title: LocalizedStringResource
     var subtitle: String?
     let isActive: Bool
     @ViewBuilder let trailing: Trailing

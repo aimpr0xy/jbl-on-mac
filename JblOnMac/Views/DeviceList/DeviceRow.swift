@@ -12,7 +12,7 @@ struct DeviceRow: View {
         let isBusy = isPairing || isOpening
         SelectableRow(
             systemImage: "headphones",
-            title: device.name,
+            title: LocalizedStringResource(stringLiteral: device.name),
             subtitle: subtitle(isPairing: isPairing, isOpening: isOpening),
             isActive: device.isConnected
         ) {
