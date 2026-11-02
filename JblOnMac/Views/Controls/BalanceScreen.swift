@@ -7,10 +7,10 @@ struct BalanceScreen: View {
 
     var body: some View {
         let binding = Binding<Double>(
-            get: { Double(headphones.balance ?? 0) },
+            get: { Double(headphones.state.balance ?? 0) },
             set: { headphones.setBalance(Int($0)) }
         )
-        let value = headphones.balance ?? 0
+        let value = headphones.state.balance ?? 0
         VStack(alignment: .leading, spacing: 0) {
             BackHeader(title: "Balance") {
                 screen = .controls

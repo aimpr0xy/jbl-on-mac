@@ -21,8 +21,8 @@ struct LevelScreen: View {
     private var slider: some View {
         let binding = Binding<Double>(
             get: {
-                Double((mode == .noiseCanceling ? headphones.noiseCancelingLevel
-                                                : headphones.ambientAwareLevel) ?? 4)
+                Double((mode == .noiseCanceling ? headphones.state.noiseCancelingLevel
+                                                : headphones.state.ambientAwareLevel) ?? 4)
             },
             set: { headphones.setLevel(Int($0), for: mode) }
         )

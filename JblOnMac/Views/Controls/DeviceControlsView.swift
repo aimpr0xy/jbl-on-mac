@@ -21,7 +21,7 @@ struct DeviceControlsView: View {
                 SelectableRow(
                     systemImage: option.systemImage,
                     title: option.rawValue,
-                    isActive: headphones.selectedMode == option
+                    isActive: headphones.state.mode == option
                 ) {
                     if option.hasLevel {
                         levelChevron(for: option)
@@ -32,14 +32,14 @@ struct DeviceControlsView: View {
             }
 
             // Only shown once the headphones report a smart audio and video state.
-            if headphones.selectedSmartMode != nil {
+            if headphones.state.smartMode != nil {
                 SectionTitle("Smart Audio & Video")
                     .padding(.top, 8)
                 ForEach(SmartAudioMode.allCases) { option in
                     SelectableRow(
                         systemImage: option.systemImage,
                         title: option.title,
-                        isActive: headphones.selectedSmartMode == option
+                        isActive: headphones.state.smartMode == option
                     ) {
                         EmptyView()
                     } action: {
@@ -50,14 +50,14 @@ struct DeviceControlsView: View {
 
             // Only shown once the headphones report a spatial audio state, so models
             // without the feature don't get a dead section.
-            if headphones.selectedSpatialMode != nil {
+            if headphones.state.spatialMode != nil {
                 SectionTitle("Spatial Audio")
                     .padding(.top, 8)
                 ForEach(SpatialAudioMode.allCases) { option in
                     SelectableRow(
                         systemImage: option.systemImage,
                         title: option.title,
-                        isActive: headphones.selectedSpatialMode == option
+                        isActive: headphones.state.spatialMode == option
                     ) {
                         EmptyView()
                     } action: {
@@ -89,7 +89,7 @@ struct DeviceControlsView: View {
             }
 
             // Only shown once the headphones report a limiter state.
-            if let limiter = headphones.volumeLimiterEnabled {
+            if let limiter = headphones.state.volumeLimiterEnabled {
                 SelectableRow(
                     systemImage: "ear.badge.checkmark",
                     title: "Safe Sound",
@@ -132,9 +132,9 @@ struct DeviceControlsView: View {
     @ViewBuilder
     private var batteryRow: some View {
         let levels: [(label: String, symbol: String, percent: Int?)] = [
-            ("Left", "l.circle", headphones.leftBattery),
-            ("Right", "r.circle", headphones.rightBattery),
-            ("Case", "earbuds.case", headphones.caseBattery),
+            ("Left", "l.circle", headphones.state.leftBattery),
+            ("Right", "r.circle", headphones.state.rightBattery),
+            ("Case", "earbuds.case", headphones.state.caseBattery),
         ]
         if levels.contains(where: { $0.percent != nil }) {
             HStack(spacing: 14) {
