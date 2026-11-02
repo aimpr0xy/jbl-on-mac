@@ -10,13 +10,13 @@ struct JBLReplyTests {
     }
 
     static let decoded: [Case] = [
-        Case(name: "equalizer", hex: "AA A2 74 00 04 03", replies: [.equalizer(.bass)]),
+        Case(name: "equalizer", hex: equalizerFrame(preset: "03"), replies: [.equalizer(.bass)]),
         Case(name: "earbud batteries",
              hex: "AA 06 0B 00 02 00 1A 02 00 50 00 1B 02 00 4B",
              replies: [.battery(.left, percent: 80), .battery(.right, percent: 75)]),
-        Case(name: "case battery", hex: "AA 06 07 00 02 00 1C 02 00 64",
+        Case(name: "case battery", hex: "AA 06 06 00 02 00 1C 02 00 64",
              replies: [.battery(.chargingCase, percent: 100)]),
-        Case(name: "battery above 100% is ignored", hex: "AA 06 07 00 02 00 1C 02 00 65", replies: []),
+        Case(name: "battery above 100% is ignored", hex: "AA 06 06 00 02 00 1C 02 00 65", replies: []),
         Case(name: "spatial audio", hex: "AA 06 06 00 02 00 0C 02 01 03", replies: [.spatialAudio(.headTracking)]),
         Case(name: "smart audio", hex: "AA 80 09 02 00 01 2E 00 18 01 FF FF", replies: [.smartAudio(.audio)]),
         Case(name: "balance left", hex: "AA A8 05 02 01 01 02 54", replies: [.balance(-16)]),
@@ -56,7 +56,7 @@ struct JBLReplyTests {
         Case(name: "wrong start byte", hex: "00 06 05 00 02 00 20 01 01", replies: []),
         Case(name: "unknown group", hex: "AA 55 05 00 02 00 20 01 01", replies: []),
         Case(name: "unknown feature id", hex: "AA 06 05 00 02 00 7F 01 01", replies: []),
-        Case(name: "unknown equalizer preset", hex: "AA A2 74 00 04 FF", replies: []),
+        Case(name: "unknown equalizer preset", hex: equalizerFrame(preset: "FF"), replies: []),
         Case(name: "smart audio with unknown payload", hex: "AA 80 09 02 01 02 03 04 05 06 07 08", replies: []),
         Case(name: "truncated equalizer", hex: "AA A2 74 00 04", replies: []),
         Case(name: "truncated battery", hex: "AA 06 05 00 02 00 1A 02 00", replies: []),
@@ -69,6 +69,47 @@ struct JBLReplyTests {
         Case(name: "truncated levels", hex: "AA 91 05 22", replies: []),
     ]
 
+    /// A full-length equalizer reply: `AA A2 74 00 04 <preset>` padded to the 120 bytes its length byte promises.
+    static func equalizerFrame(preset: String) -> String {
+        "AA A2 74 00 04 \(preset)" + String(repeating: " 00", count: 114)
+    }
+
+    static let mode = "AA 91 09 12 01 01 02 00 03 00 04 07"
+    static let spatial = "AA 06 06 00 02 00 0C 02 01 01"
+    static let battery = "AA 06 0A 00 02 00 1A 02 00 50 1B 02 00 4B"
+
+    /// Several frames in one notification are all decoded, in order.
+    static let concatenated: [Case] = [
+        Case(name: "mode + spatial", hex: "\(mode) \(spatial)",
+             replies: [.noiseCancelingLevel(7), .listeningMode(.noiseCanceling), .spatialAudio(.off)]),
+        Case(name: "spatial + mode", hex: "\(spatial) \(mode)",
+             replies: [.spatialAudio(.off), .noiseCancelingLevel(7), .listeningMode(.noiseCanceling)]),
+        Case(name: "battery + spatial", hex: "\(battery) \(spatial)",
+             replies: [.battery(.left, percent: 80), .battery(.right, percent: 75), .spatialAudio(.off)]),
+        Case(name: "valid frame then a cut-off one", hex: "\(spatial) AA 06 06 00 02",
+             replies: [.spatialAudio(.off)]),
+        Case(name: "valid frame then trailing garbage", hex: "\(spatial) 00 11 22",
+             replies: [.spatialAudio(.off)]),
+    ]
+
+    /// A frame whose length byte disagrees with its contents is rejected.
+    static let badLength: [Case] = [
+        Case(name: "length too long", hex: "AA 06 40 00 02 00 0C 02 01 01", replies: []),
+        Case(name: "length too short", hex: "AA 06 05 00 02 00 0C 02 01 01", replies: []),
+        Case(name: "length zero", hex: "AA 06 00 00 02 00 0C 02 01 01", replies: []),
+        Case(name: "bad frame hides the next one", hex: "AA 06 40 00 02 00 0C 02 01 01 \(spatial)", replies: []),
+    ]
+
+    @Test(arguments: concatenated)
+    func decodesEveryFrame(_ testCase: Case) {
+        #expect(JBLReply.decode(bytes(testCase.hex)) == testCase.replies)
+    }
+
+    @Test(arguments: badLength)
+    func rejectsWrongLength(_ testCase: Case) {
+        #expect(JBLReply.decode(bytes(testCase.hex)) == testCase.replies)
+    }
+
     @Test(arguments: decoded)
     func decodes(_ testCase: Case) {
         #expect(JBLReply.decode(bytes(testCase.hex)) == testCase.replies)
@@ -80,7 +121,7 @@ struct JBLReplyTests {
     }
 
     /// No prefix of any valid packet may crash the decoder.
-    @Test(arguments: decoded)
+    @Test(arguments: decoded + concatenated)
     func survivesEveryTruncation(_ testCase: Case) {
         let packet = bytes(testCase.hex)
         for length in 0...packet.count {
