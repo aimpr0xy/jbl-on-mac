@@ -31,6 +31,8 @@ final class HeadphoneController: NSObject {
     var balance: Int?
     /// Whether the max volume limiter is on; nil until reported.
     var volumeLimiterEnabled: Bool?
+    /// Equalizer preset last set or reported; nil until known.
+    var selectedEqualizer: EqualizerPreset?
     /// Call features reported by the headphones; nil until reported.
     var soundLevelOptimizerEnabled: Bool?
     var callSoundSetting: CallSoundSetting?
@@ -100,6 +102,7 @@ final class HeadphoneController: NSObject {
         selectedSmartMode = nil
         balance = nil
         volumeLimiterEnabled = nil
+        selectedEqualizer = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearCallFeatures()
@@ -116,6 +119,7 @@ final class HeadphoneController: NSObject {
         selectedSmartMode = nil
         balance = nil
         volumeLimiterEnabled = nil
+        selectedEqualizer = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearCallFeatures()
@@ -178,6 +182,13 @@ final class HeadphoneController: NSObject {
         guard balance != value else { return }
         balance = value
         send(.setBalance(value))
+    }
+
+    /// Sends the equalizer command for the given preset.
+    func select(_ preset: EqualizerPreset) {
+        guard canSend else { return }
+        send(.setEqualizer(preset))
+        selectedEqualizer = preset
     }
 
     /// Turns the max volume limiter on or off.

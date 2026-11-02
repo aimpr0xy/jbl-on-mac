@@ -19,6 +19,8 @@ import Foundation
 ///     14  call sound setting      AA 06 06 00 00 00 14 02 01 <0 natural | 1 treble | 2 bass>
 ///     16  call voice setting      AA 06 07 00 00 00 16 03 FF FF <0 natural | 1 powerful | 2 bright>
 ///     0D  voice aware             AA 06 06 00 00 00 0D 02 <00 off | 01 on> <1 low | 2 mid | 3 high>
+///   equalizer write          AA A2 74 00 03 <preset> <headroom f32> 30 00*8 | 10 x (0A 01 <gain f32> <Hz f32>) | 0A
+///                            (floats little-endian; the app writes to handle 0x002D, same as the others)
 /// Replies are decoded by `JBLReply`.
 enum JBLCommand: Equatable {
     // Writes
@@ -34,6 +36,7 @@ enum JBLCommand: Equatable {
     case setCallSound(CallSoundSetting)
     case setCallVoice(CallVoiceSetting)
     case setVoiceAware(enabled: Bool, level: VoiceAwareLevel)
+    case setEqualizer(EqualizerPreset)
 
     // Queries
     case queryListeningMode
@@ -79,6 +82,14 @@ enum JBLCommand: Equatable {
             return [0xAA, 0x06, 0x07, 0x00, 0x00, 0x00, 0x16, 0x03, 0xFF, 0xFF, setting.rawValue]
         case .setVoiceAware(let enabled, let level):
             return [0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0D, 0x02, enabled ? 1 : 0, level.rawValue]
+        case .setEqualizer(let preset):
+            var packet: [UInt8] = [0xAA, 0xA2, 0x74, 0x00, 0x03, preset.rawValue]
+            packet += Self.littleEndian(preset.headroom)
+            packet += [0x30] + [UInt8](repeating: 0, count: 8)
+            for (gain, frequency) in zip(preset.gains, EqualizerPreset.frequencies) {
+                packet += [0x0A, 0x01] + Self.littleEndian(gain) + Self.littleEndian(frequency)
+            }
+            return packet + [0x0A]
 
         case .queryListeningMode: return [0xAA, 0x91, 0x01, 0x11]
         case .queryLevels: return [0xAA, 0x91, 0x01, 0x21]
@@ -90,6 +101,10 @@ enum JBLCommand: Equatable {
         case .queryVolumeLimiter: return Self.featureQuery(id: 0x20)
         case .queryCallFeature(let id): return Self.featureQuery(id: id)
         }
+    }
+
+    private static func littleEndian(_ value: Float) -> [UInt8] {
+        withUnsafeBytes(of: value.bitPattern.littleEndian) { Array($0) }
     }
 
     private static func featureQuery(id: UInt8) -> [UInt8] {

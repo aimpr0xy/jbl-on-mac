@@ -32,6 +32,7 @@ extension HeadphoneController: CBPeripheralDelegate {
         case .smartAudio(let mode): selectedSmartMode = mode
         case .balance(let value): balance = value
         case .volumeLimiter(let enabled): volumeLimiterEnabled = enabled
+        case .equalizer(let preset): selectedEqualizer = preset
         case .soundLevelOptimizer(let enabled): soundLevelOptimizerEnabled = enabled
         case .callSound(let setting): callSoundSetting = setting
         case .callVoice(let setting): callVoiceSetting = setting

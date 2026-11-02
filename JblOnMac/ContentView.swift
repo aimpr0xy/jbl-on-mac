@@ -22,6 +22,9 @@ struct ContentView: View {
                 case .balance:
                     BalanceScreen(headphones: headphones, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .equalizer:
+                    EqualizerScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 case .calls:
                     CallFeaturesScreen(headphones: headphones, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))

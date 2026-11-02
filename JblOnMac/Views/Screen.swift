@@ -5,5 +5,6 @@ enum Screen: Hashable {
     case controls
     case level(ListeningMode)
     case balance
+    case equalizer
     case calls
 }

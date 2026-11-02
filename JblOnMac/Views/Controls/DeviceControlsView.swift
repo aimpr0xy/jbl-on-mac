@@ -78,6 +78,16 @@ struct DeviceControlsView: View {
                 screen = .balance
             }
 
+            SelectableRow(
+                systemImage: "slider.vertical.3",
+                title: "Equalizer",
+                isActive: false
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .equalizer
+            }
+
             // Only shown once the headphones report a limiter state.
             if let limiter = headphones.volumeLimiterEnabled {
                 SelectableRow(

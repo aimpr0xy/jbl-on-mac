@@ -20,10 +20,12 @@ enum JBLReply: Equatable {
     case callVoice(CallVoiceSetting?)
     case voiceAware(enabled: Bool, level: VoiceAwareLevel?)
     case battery(BatteryPart, percent: Int)
+    case equalizer(EqualizerPreset)
 
     /// Decodes a notification; unknown or malformed packets give an empty array.
     static func decode(_ bytes: [UInt8]) -> [JBLReply] {
-        battery(bytes)
+        equalizer(bytes)
+            + battery(bytes)
             + spatialAudio(bytes)
             + smartAudio(bytes)
             + balance(bytes)
@@ -31,6 +33,13 @@ enum JBLReply: Equatable {
             + callFeatures(bytes)
             + levels(bytes)
             + listeningMode(bytes)
+    }
+
+    /// Equalizer replies echo the write: `AA A2 74 00 04 <preset> ...`.
+    private static func equalizer(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 6, bytes[0] == 0xAA, bytes[1] == 0xA2, bytes[4] == 0x04,
+              let preset = EqualizerPreset(rawValue: bytes[5]) else { return [] }
+        return [.equalizer(preset)]
     }
 
     /// Call feature replies are `AA 06 <len> 00 02 00 <id> ...`.
