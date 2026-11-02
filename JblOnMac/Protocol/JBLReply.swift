@@ -22,17 +22,48 @@ enum JBLReply: Equatable {
     case battery(BatteryPart, percent: Int)
     case equalizer(EqualizerPreset)
 
-    /// Decodes a notification; unknown or malformed packets give an empty array.
+    /// Decodes a notification, which may carry several frames back to back; unknown or malformed
+    /// frames give nothing. Decoding stops at the first frame that is cut short or doesn't start
+    /// with `AA`, because without a valid length there is no telling where the next one begins.
     static func decode(_ bytes: [UInt8]) -> [JBLReply] {
-        equalizer(bytes)
-            + battery(bytes)
-            + spatialAudio(bytes)
-            + smartAudio(bytes)
-            + balance(bytes)
-            + volumeLimiter(bytes)
-            + callFeatures(bytes)
-            + levels(bytes)
-            + listeningMode(bytes)
+        var replies: [JBLReply] = []
+        var start = 0
+        while let length = frameLength(in: bytes, at: start) {
+            replies += decode(frame: Array(bytes[start..<start + length]))
+            start += length
+        }
+        return replies
+    }
+
+    /// Frames are `AA <group> <len> <payload…>`. The length byte counts everything after itself in
+    /// groups `91`, `80` and `A8`, but is one short in groups `06` and `A2` (as seen in every
+    /// documented capture, e.g. `AA 06 06 00 00 00 0C 02 01 03` is 10 bytes), so those frames
+    /// are `len + 4` bytes long and the others `len + 3`. Nil when there is no complete frame.
+    private static func frameLength(in bytes: [UInt8], at start: Int) -> Int? {
+        guard bytes.count - start >= 4, bytes[start] == 0xAA else { return nil }
+        let overhead = (bytes[start + 1] == 0x06 || bytes[start + 1] == 0xA2) ? 4 : 3
+        let length = Int(bytes[start + 2]) + overhead
+        return start + length <= bytes.count ? length : nil
+    }
+
+    /// Picks the one decoder that owns a frame, so decoders can't match each other's packets.
+    private static func decode(frame bytes: [UInt8]) -> [JBLReply] {
+        switch bytes[1] {
+        case 0xA2: return equalizer(bytes)
+        case 0xA8: return balance(bytes)
+        case 0x80: return smartAudio(bytes)
+        case 0x91: return bytes[3] == 0x12 ? levels(bytes) + listeningMode(bytes) : levels(bytes)
+        case 0x06:
+            guard bytes.count >= 7 else { return [] }
+            switch bytes[6] {
+            case 0x0C: return spatialAudio(bytes)
+            case 0x20: return volumeLimiter(bytes)
+            case 0x23, 0x14, 0x16, 0x0D: return callFeatures(bytes)
+            // Battery entries are `<id> 02 00 <percent>` with ids 1A, 1B and 1C in any order.
+            default: return battery(bytes)
+            }
+        default: return []
+        }
     }
 
     /// Equalizer replies echo the write: `AA A2 74 00 04 <preset> ...`.
