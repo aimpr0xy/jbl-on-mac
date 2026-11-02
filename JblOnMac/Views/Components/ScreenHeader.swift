@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Plain title bar used by the device list.
 struct ScreenHeader<Trailing: View>: View {
-    let title: String
+    let title: LocalizedStringResource
     @ViewBuilder let trailing: Trailing
 
     var body: some View {
@@ -19,8 +19,8 @@ struct ScreenHeader<Trailing: View>: View {
 
 /// Title bar with a back chevron, used by every screen after the device list.
 struct BackHeader<Trailing: View>: View {
-    let title: String
-    var backLabel = "Back"
+    let title: LocalizedStringResource
+    var backLabel: LocalizedStringResource = "Back"
     let onBack: () -> Void
     @ViewBuilder let trailing: Trailing
 

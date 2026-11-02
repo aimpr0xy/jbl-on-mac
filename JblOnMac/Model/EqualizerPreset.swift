@@ -17,7 +17,7 @@ enum EqualizerPreset: UInt8, CaseIterable, Identifiable {
     /// Band centre frequencies in Hz, shared by every preset.
     static let frequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .off: "Off"
         case .studio: "Studio"

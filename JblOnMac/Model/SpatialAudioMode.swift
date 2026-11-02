@@ -9,7 +9,7 @@ enum SpatialAudioMode: UInt8, CaseIterable, Identifiable {
 
     var id: UInt8 { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .off: "Off"
         case .fixed: "Fixed"

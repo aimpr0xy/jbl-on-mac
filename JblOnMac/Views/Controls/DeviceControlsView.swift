@@ -8,7 +8,7 @@ struct DeviceControlsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BackHeader(title: device.name, backLabel: "Back to devices") {
+            BackHeader(title: LocalizedStringResource(stringLiteral: device.name), backLabel: "Back to devices") {
                 headphones.deselect()
             } trailing: {
                 EmptyView()
@@ -20,7 +20,7 @@ struct DeviceControlsView: View {
             ForEach(ListeningMode.allCases) { option in
                 SelectableRow(
                     systemImage: option.systemImage,
-                    title: option.rawValue,
+                    title: option.title,
                     isActive: headphones.state.mode == option
                 ) {
                     if option.hasLevel {
@@ -125,7 +125,7 @@ struct DeviceControlsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(mode.rawValue) level")
+        .accessibilityLabel(String(localized: "\(String(localized: mode.title)) level"))
     }
 
     /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.

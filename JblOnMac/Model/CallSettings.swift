@@ -9,7 +9,7 @@ enum CallSoundSetting: UInt8, CaseIterable, Identifiable {
 
     var id: UInt8 { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .natural: "Natural"
         case .increasedTreble: "Increased Treble"
@@ -34,7 +34,7 @@ enum CallVoiceSetting: UInt8, CaseIterable, Identifiable {
 
     var id: UInt8 { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .natural: "Natural"
         case .powerful: "Powerful"
@@ -58,7 +58,7 @@ enum VoiceAwareLevel: UInt8, CaseIterable, Identifiable {
 
     var id: UInt8 { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .low: "Low"
         case .mid: "Mid"

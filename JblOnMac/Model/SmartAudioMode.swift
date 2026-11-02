@@ -23,7 +23,7 @@ enum SmartAudioMode: CaseIterable, Identifiable {
         self = match
     }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .off: "Off"
         case .audio: "Audio Mode"

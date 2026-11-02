@@ -8,7 +8,7 @@ struct LevelScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BackHeader(title: mode.rawValue) {
+            BackHeader(title: mode.title) {
                 screen = .controls
             } trailing: {
                 EmptyView()
@@ -34,6 +34,6 @@ struct LevelScreen: View {
         .font(.caption)
         .padding(.horizontal, 8)
         .padding(.bottom, 4)
-        .accessibilityLabel("\(mode.rawValue) level")
+        .accessibilityLabel(String(localized: "\(String(localized: mode.title)) level"))
     }
 }
