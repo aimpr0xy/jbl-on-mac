@@ -42,7 +42,6 @@ extension HeadphoneController: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         rememberedIdentifier = peripheral.identifier
         expectedDisconnects.remove(peripheral.identifier)
-        failedAttempts = 0
         peripheral.discoverServices(nil)
     }
 
@@ -64,14 +63,21 @@ extension HeadphoneController: CBCentralManagerDelegate {
         retryConnecting()
     }
 
-    /// Tries again shortly after a failure or a dropped link, as long as a device is selected.
+    /// Tries again after a failure or a dropped link, as long as a device is selected. The delay
+    /// doubles with each failed attempt (1, 2, 4, 8 s); after `maxFailedAttempts` it gives up.
     func retryConnecting() {
         guard selectedDevice != nil else { return }
+        guard failedAttempts < maxFailedAttempts else {
+            giveUpConnecting()
+            return
+        }
         status = .connecting
         connectAttempt += 1
         let attempt = connectAttempt
+        let delay = 1 << max(failedAttempts - 1, 0)
+        log.notice("retrying in \(delay)s (failed attempts: \(self.failedAttempts))")
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .seconds(delay))
             guard let self, self.connectAttempt == attempt, self.selectedDevice != nil,
                   self.peripheral == nil else { return }
             self.startScanning()

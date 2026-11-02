@@ -68,7 +68,10 @@ final class HeadphoneController: NSObject {
     /// A discovered JBL whose name isn't an exact match; used only if no exact match
     /// turns up shortly after.
     @ObservationIgnored var fallbackPeripheral: CBPeripheral?
+    /// Failed attempts since the last successful connection; drives the retry backoff.
     @ObservationIgnored var failedAttempts = 0
+    /// After this many failed attempts in a row, stop retrying and show an error.
+    let maxFailedAttempts = 5
     @ObservationIgnored var connectAttempt = 0
     /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
     /// that would tear down the fresh attempt.
@@ -110,6 +113,8 @@ final class HeadphoneController: NSObject {
     func select(_ device: JBLDevice) {
         disconnect()
         stopDiscovery()
+        failedAttempts = 0
+        connectionError = nil
         selectedDevice = device
         selectedMode = nil
         selectedSpatialMode = nil
@@ -336,11 +341,20 @@ final class HeadphoneController: NSObject {
             try? await Task.sleep(for: .seconds(10))
             guard let self, self.connectAttempt == attempt, self.status != .connected,
                   self.selectedDevice != nil else { return }
-            log.notice("watchdog: attempt timed out, restarting")
+            log.notice("watchdog: attempt timed out")
             self.failedAttempts += 1
             self.disconnect()
-            self.startScanning()
+            self.retryConnecting()
         }
+    }
+
+    /// Stops retrying and goes back to the device list with an error, so the app doesn't keep
+    /// the radio busy forever when the headphones are off or out of range.
+    func giveUpConnecting() {
+        let name = selectedDevice?.name ?? "the headphones"
+        log.notice("giving up after \(self.failedAttempts) failed attempts")
+        deselect()
+        connectionError = "Couldn't reach \(name). Make sure it's turned on and nearby, then try again."
     }
 
     func disconnect() {
