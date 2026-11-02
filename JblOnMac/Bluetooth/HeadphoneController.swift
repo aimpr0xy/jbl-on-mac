@@ -8,6 +8,7 @@ let log = Logger(subsystem: "JblOnMac", category: "BLE")
 
 /// Discovers nearby JBL products, connects them through macOS Bluetooth, and talks to the
 /// selected one over BLE. Packets are built by `JBLCommand` and decoded by `JBLReply`.
+@MainActor
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -86,7 +87,9 @@ final class HeadphoneController: NSObject {
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
         // Release the headphones' single LE link cleanly on quit, so the next launch
-        // doesn't have to wait for the stale connection to time out.
+        // doesn't have to wait for the stale connection to time out. This stays a synchronous
+        // observer (an async sequence might not run before the app exits). It is delivered on
+        // the main queue, so `assumeIsolated` only asserts what `queue: .main` already guarantees.
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in
