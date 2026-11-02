@@ -369,8 +369,8 @@ struct ContentView: View {
             // Only shown once the headphones report a limiter state.
             if let limiter = headphones.volumeLimiterEnabled {
                 SelectableRow(
-                    systemImage: "speaker.wave.2",
-                    title: "Max Volume Limiter",
+                    systemImage: "ear.badge.checkmark",
+                    title: "Safe Sound",
                     isActive: limiter
                 ) {
                     EmptyView()
