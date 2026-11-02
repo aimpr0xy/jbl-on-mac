@@ -124,13 +124,23 @@ The doc comment at the top of `JblOnMac/Protocol/JBLCommand.swift` lists every p
 2. If the headphones reply, add a case to `JBLReply` and a decoder in `JblOnMac/Protocol/JBLReply.swift`. Keep decoders strict (check the group, operation, and length bytes) so one feature's decoder doesn't match another feature's packets.
 3. If the feature should be read when the app connects, add its query to `JBLCommand.initialQueries`.
 4. Add any new value types to `JblOnMac/Model`, and the UI to `JblOnMac/Views/Controls`.
-5. Test with a real device, and update the compatibility table in the README.
+5. Add the captured packets to the tests (see below).
+6. Test with a real device, and update the compatibility table in the README.
+
+#### Adding captured packets as tests
+
+The tests in `JblOnMacTests` use [Swift Testing](https://developer.apple.com/documentation/testing/) and run with **⌘U** (select the **JblOnMacTests** scheme if no tests show up). Packets are written as hex exactly as PacketLogger shows them, so a capture can be pasted in without converting it.
+
+- **Commands** (`JBLCommandTests.swift`): add a `Case(command: ..., hex: "AA 91 03 20 04 05")` to `writes` or `queries`. The test checks that `JBLCommand.bytes` produces the captured packet.
+- **Replies** (`JBLReplyTests.swift`): add a `Case(name: ..., hex: ..., replies: [...])` to `decoded`, with the replies the packet should produce. Packets that must be ignored (unknown, malformed, or cut short) go in `ignored`. Cases in `decoded` are also checked at every truncated length, which must not crash.
+
+For a new device, add its captures as new cases and name them after the device, for example `"tune 770nc battery"`.
 
 ## Submitting changes
 
 1. Create a branch from `master`, such as `feature/auto-off-timer` or `device/tune-770nc`.
 2. Keep each pull request focused on one feature, fix, or device.
-3. Build with **⌘B** and test on real hardware before you open the pull request.
+3. Build with **⌘B**, run the tests with **⌘U**, and test on real hardware before you open the pull request.
 4. In the pull request description, include:
    - What changed and why
    - Which device and firmware you tested with
