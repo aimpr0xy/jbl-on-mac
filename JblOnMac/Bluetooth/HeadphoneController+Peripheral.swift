@@ -49,6 +49,7 @@ extension HeadphoneController: CBPeripheralDelegate {
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        log.notice("didDiscoverServices \((peripheral.services ?? []).map { $0.uuid.uuidString }, privacy: .public) error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
         for service in peripheral.services ?? [] {
             peripheral.discoverCharacteristics([writeUUID, notifyUUID], for: service)
         }
@@ -56,6 +57,7 @@ extension HeadphoneController: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        log.notice("didDiscoverCharacteristics service=\(service.uuid.uuidString, privacy: .public) \((service.characteristics ?? []).map { $0.uuid.uuidString }, privacy: .public) error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
         for characteristic in service.characteristics ?? [] {
             if characteristic.uuid == notifyUUID {
                 peripheral.setNotifyValue(true, for: characteristic)
