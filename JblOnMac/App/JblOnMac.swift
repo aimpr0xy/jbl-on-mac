@@ -4,8 +4,10 @@ import SwiftUI
     @State private var headphones = HeadphoneController()
 
     var body: some Scene {
-        MenuBarExtra("Listening Mode", systemImage: "headphones") {
+        MenuBarExtra {
             ContentView(headphones: headphones)
+        } label: {
+            Image("JblSymbol")
         }
         .menuBarExtraStyle(.window)
     }
