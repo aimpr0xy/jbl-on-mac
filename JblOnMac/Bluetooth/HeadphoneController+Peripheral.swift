@@ -61,6 +61,9 @@ extension HeadphoneController: CBPeripheralDelegate {
                 peripheral.setNotifyValue(true, for: characteristic)
             } else if characteristic.uuid == writeUUID {
                 writeCharacteristic = characteristic
+                // Only count the attempt as a success once the link is usable; a link that
+                // connects but never shows its services should still count toward giving up.
+                failedAttempts = 0
                 status = .connected
             }
         }
