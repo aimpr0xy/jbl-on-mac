@@ -65,20 +65,31 @@ final class HeadphoneController: NSObject {
     @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
     @ObservationIgnored var pairing: IOBluetoothDevicePair?
 
-    /// Core Bluetooth identifier of the headphones' LE link, remembered after a successful
-    /// connection. Seeded with the identifier seen for the "JBL Tune Beam 2" on this Mac.
+    /// A discovered JBL whose name isn't an exact match; used only if no exact match
+    /// turns up shortly after.
+    @ObservationIgnored var fallbackPeripheral: CBPeripheral?
     @ObservationIgnored var failedAttempts = 0
     @ObservationIgnored var connectAttempt = 0
     /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
     /// that would tear down the fresh attempt.
     @ObservationIgnored var expectedDisconnects: Set<UUID> = []
+    /// Core Bluetooth identifier of the headphones' LE link, remembered after a successful
+    /// connection. Stored per device (by classic Bluetooth address), so each pair of headphones
+    /// remembers its own LE link. Nil until a connection succeeds, or when no device is selected.
     @ObservationIgnored var rememberedIdentifier: UUID? {
         get {
-            let stored = UserDefaults.standard.string(forKey: "lePeripheralIdentifier")
-                ?? "4E7D3055-217E-77DB-AE69-E20CA1B97517"
+            guard let key = rememberedIdentifierKey,
+                  let stored = UserDefaults.standard.string(forKey: key) else { return nil }
             return UUID(uuidString: stored)
         }
-        set { UserDefaults.standard.set(newValue?.uuidString, forKey: "lePeripheralIdentifier") }
+        set {
+            guard let key = rememberedIdentifierKey else { return }
+            UserDefaults.standard.set(newValue?.uuidString, forKey: key)
+        }
+    }
+
+    private var rememberedIdentifierKey: String? {
+        selectedDevice.map { "lePeripheralIdentifier.\($0.address)" }
     }
 
     override init() {
@@ -279,7 +290,8 @@ final class HeadphoneController: NSObject {
         // connection), in which case they don't advertise and a scan would never find them.
         let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [CBUUID(string: "1800")])
         log.notice("already connected: \(alreadyConnected.map { $0.name ?? "nil" }, privacy: .public), target=\(self.selectedDevice?.name ?? "nil", privacy: .public), state=\(self.central.state.rawValue)")
-        if let match = alreadyConnected.first(where: { matchesSelectedDevice(name: $0.name) }) {
+        if let match = alreadyConnected.first(where: { matchesSelectedDeviceExactly(name: $0.name) })
+            ?? alreadyConnected.first(where: { matchesSelectedDevice(name: $0.name) }) {
             connectToHeadphones(match)
             return
         }
@@ -287,10 +299,18 @@ final class HeadphoneController: NSObject {
         central.scanForPeripherals(withServices: nil)
     }
 
-    /// The BLE name can differ slightly from the classic Bluetooth name, so fall back to any JBL.
-    func matchesSelectedDevice(name: String?) -> Bool {
+    /// Whether a BLE name is the same as the selected device's classic Bluetooth name.
+    func matchesSelectedDeviceExactly(name: String?) -> Bool {
         guard let name, let target = selectedDevice else { return false }
         return name.caseInsensitiveCompare(target.name) == .orderedSame
+    }
+
+    /// The BLE name can differ slightly from the classic Bluetooth name, so any JBL is a
+    /// fallback. Callers should prefer `matchesSelectedDeviceExactly` and only use this when
+    /// no exact match shows up, so a nearby JBL speaker isn't picked over the headphones.
+    func matchesSelectedDevice(name: String?) -> Bool {
+        guard let name, selectedDevice != nil else { return false }
+        return matchesSelectedDeviceExactly(name: name)
             || name.localizedCaseInsensitiveContains("JBL")
     }
 
@@ -325,6 +345,7 @@ final class HeadphoneController: NSObject {
 
     func disconnect() {
         central.stopScan()
+        fallbackPeripheral = nil
         if let peripheral {
             expectedDisconnects.insert(peripheral.identifier)
             central.cancelPeripheralConnection(peripheral)

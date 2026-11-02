@@ -21,8 +21,22 @@ extension HeadphoneController: CBCentralManagerDelegate {
             ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String
         log.notice("discovered name=\(name ?? "nil", privacy: .public) rssi=\(RSSI.intValue) adv=\(String(describing: advertisementData), privacy: .public)")
         guard matchesSelectedDevice(name: name) else { return }
-        central.stopScan()
-        connectToHeadphones(peripheral)
+        if matchesSelectedDeviceExactly(name: name) {
+            fallbackPeripheral = nil
+            central.stopScan()
+            connectToHeadphones(peripheral)
+        } else if fallbackPeripheral == nil {
+            // Wait briefly for an exact match before settling for a differently named JBL.
+            fallbackPeripheral = peripheral
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(3))
+                guard let self, let fallback = self.fallbackPeripheral, fallback === peripheral,
+                      self.peripheral == nil, self.selectedDevice != nil else { return }
+                self.fallbackPeripheral = nil
+                self.central.stopScan()
+                self.connectToHeadphones(fallback)
+            }
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
