@@ -32,6 +32,9 @@ struct JBLDevice: Identifiable, Hashable {
 ///   balance write            AA A8 05 00 01 01 02 <100 + balance>   (0x54 = -16 left ... 0x74 = +16 right)
 ///   balance query            AA A8 01 01 (assumed from the other features' query pattern)
 ///   balance reply            AA A8 05 02 01 01 02 <100 + balance>   (also sent after a change)
+///   volume limiter write     AA 06 05 00 00 00 20 01 <00 off | 01 on>
+///   volume limiter query     AA 06 03 00 01 00 20 (assumed from the spatial audio query pattern)
+///   volume limiter reply     AA 06 05 00 02 00 20 01 <00|01>   (also sent after a change)
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -53,6 +56,8 @@ final class HeadphoneController: NSObject {
     private(set) var selectedSmartMode: SmartAudioMode?
     /// Left / right sound balance (-16 left ... 16 right); nil until reported.
     private(set) var balance: Int?
+    /// Whether the max volume limiter is on; nil until reported.
+    private(set) var volumeLimiterEnabled: Bool?
     /// Noise canceling and ambient aware strength (1...7); nil until reported.
     private(set) var noiseCancelingLevel: Int?
     private(set) var ambientAwareLevel: Int?
@@ -186,6 +191,7 @@ final class HeadphoneController: NSObject {
         selectedSpatialMode = nil
         selectedSmartMode = nil
         balance = nil
+        volumeLimiterEnabled = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -200,6 +206,7 @@ final class HeadphoneController: NSObject {
         selectedSpatialMode = nil
         selectedSmartMode = nil
         balance = nil
+        volumeLimiterEnabled = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -265,6 +272,14 @@ final class HeadphoneController: NSObject {
         guard balance != value else { return }
         balance = value
         peripheral.writeValue(Data([0xAA, 0xA8, 0x05, 0x00, 0x01, 0x01, 0x02, UInt8(100 + value)]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Turns the max volume limiter on or off.
+    func setVolumeLimiter(_ enabled: Bool) {
+        guard let peripheral, let writeCharacteristic else { return }
+        volumeLimiterEnabled = enabled
+        peripheral.writeValue(Data([0xAA, 0x06, 0x05, 0x00, 0x00, 0x00, 0x20, 0x01, enabled ? 1 : 0]),
                               for: writeCharacteristic, type: .withResponse)
     }
 
@@ -469,6 +484,16 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
                               for: writeCharacteristic, type: .withResponse)
         // And the left / right balance.
         peripheral.writeValue(Data([0xAA, 0xA8, 0x01, 0x01]), for: writeCharacteristic, type: .withResponse)
+        // And whether the max volume limiter is on.
+        peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x20]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Volume limiter replies are `AA 06 05 00 02 00 20 01 <00|01>`.
+    private func parseVolumeLimiter(_ bytes: [UInt8]) {
+        guard bytes.count >= 9, bytes[0] == 0xAA, bytes[1] == 0x06, bytes[4] == 0x02,
+              bytes[6] == 0x20, bytes[7] == 0x01, bytes[8] <= 1 else { return }
+        volumeLimiterEnabled = bytes[8] == 1
     }
 
     /// Balance replies are `AA A8 05 02 01 <enabled> 02 <100 + balance>`.
@@ -541,6 +566,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         parseSpatialAudio(bytes)
         parseSmartAudio(bytes)
         parseBalance(bytes)
+        parseVolumeLimiter(bytes)
         parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]

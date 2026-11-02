@@ -284,6 +284,19 @@ struct ContentView: View {
             } action: {
                 showsBalance = true
             }
+
+            // Only shown once the headphones report a limiter state.
+            if let limiter = headphones.volumeLimiterEnabled {
+                SelectableRow(
+                    systemImage: "speaker.wave.2",
+                    title: "Max Volume Limiter",
+                    isActive: limiter
+                ) {
+                    EmptyView()
+                } action: {
+                    headphones.setVolumeLimiter(!limiter)
+                }
+            }
         }
     }
 
