@@ -81,15 +81,21 @@ final class HeadphoneController: NSObject {
     /// remembers its own LE link. Nil until a connection succeeds, or when no device is selected.
     @ObservationIgnored var rememberedIdentifier: UUID? {
         get {
-            guard let key = rememberedIdentifierKey,
-                  let stored = UserDefaults.standard.string(forKey: key) else { return nil }
+            guard let key = rememberedIdentifierKey else { return nil }
+            // Before identifiers were stored per device there was a single global one; keep using
+            // it until the next successful connection moves it to the per-device key.
+            guard let stored = UserDefaults.standard.string(forKey: key)
+                    ?? UserDefaults.standard.string(forKey: Self.legacyIdentifierKey) else { return nil }
             return UUID(uuidString: stored)
         }
         set {
             guard let key = rememberedIdentifierKey else { return }
             UserDefaults.standard.set(newValue?.uuidString, forKey: key)
+            UserDefaults.standard.removeObject(forKey: Self.legacyIdentifierKey)
         }
     }
+
+    private static let legacyIdentifierKey = "lePeripheralIdentifier"
 
     private var rememberedIdentifierKey: String? {
         selectedDevice.map { "lePeripheralIdentifier.\($0.address)" }
