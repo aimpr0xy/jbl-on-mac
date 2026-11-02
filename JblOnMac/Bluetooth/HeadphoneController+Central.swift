@@ -49,6 +49,7 @@ extension HeadphoneController: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
         log.notice("didFailToConnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
+        cancelling[peripheral.identifier] = nil
         failedAttempts += 1
         retryConnecting()
     }
@@ -56,6 +57,7 @@ extension HeadphoneController: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
         log.notice("didDisconnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public) expected=\(self.expectedDisconnects.contains(peripheral.identifier))")
+        cancelling[peripheral.identifier] = nil
         if expectedDisconnects.remove(peripheral.identifier) != nil { return }
         // Ignore the late callback for a link we already replaced with a new attempt.
         if let current = self.peripheral, current !== peripheral { return }

@@ -58,6 +58,10 @@ final class HeadphoneController: NSObject {
     /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
     /// that would tear down the fresh attempt.
     @ObservationIgnored var expectedDisconnects: Set<UUID> = []
+    /// Peripherals whose connection we cancelled, kept alive until Core Bluetooth reports the
+    /// disconnect. Dropping the last reference while a link is still connecting makes Core
+    /// Bluetooth log "API MISUSE: Cancelling connection for unused peripheral".
+    @ObservationIgnored var cancelling: [UUID: CBPeripheral] = [:]
     /// Core Bluetooth identifier of the headphones' LE link, remembered after a successful
     /// connection. Stored per device (by classic Bluetooth address), so each pair of headphones
     /// remembers its own LE link. Nil until a connection succeeds, or when no device is selected.
@@ -296,6 +300,11 @@ final class HeadphoneController: NSObject {
     }
 
     func connectToHeadphones(_ peripheral: CBPeripheral) {
+        // A previous attempt may still be connecting (e.g. the remembered identifier was stale and
+        // a scan found the headphones under a new one); cancel it instead of just dropping it.
+        if let previous = self.peripheral, previous.identifier != peripheral.identifier {
+            cancelConnection(previous)
+        }
         self.peripheral = peripheral
         peripheral.delegate = self
         status = .connecting
@@ -337,13 +346,17 @@ final class HeadphoneController: NSObject {
     func disconnect() {
         central.stopScan()
         fallbackPeripheral = nil
-        if let peripheral {
-            expectedDisconnects.insert(peripheral.identifier)
-            central.cancelPeripheralConnection(peripheral)
-        }
+        if let peripheral { cancelConnection(peripheral) }
         peripheral = nil
         writeCharacteristic = nil
         pendingWrites.removeAll()
+    }
+
+    /// Cancels a link on purpose and keeps the peripheral alive until the cancel completes.
+    func cancelConnection(_ peripheral: CBPeripheral) {
+        expectedDisconnects.insert(peripheral.identifier)
+        cancelling[peripheral.identifier] = peripheral
+        central.cancelPeripheralConnection(peripheral)
     }
 
     /// Delegate callback for `IOBluetoothDevice.openConnection(_:)`.
