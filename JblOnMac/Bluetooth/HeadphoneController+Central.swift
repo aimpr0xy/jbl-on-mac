@@ -7,6 +7,7 @@ import os
 extension HeadphoneController: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         log.notice("didUpdateState \(central.state.rawValue)")
+        isBluetoothOff = central.state == .poweredOff
         if central.state == .poweredOn {
             if selectedDevice != nil { startScanning() }
         } else if selectedDevice != nil {

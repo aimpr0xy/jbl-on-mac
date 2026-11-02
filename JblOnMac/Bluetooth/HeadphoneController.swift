@@ -22,6 +22,9 @@ final class HeadphoneController: NSObject {
     var devices: [JBLDevice] = []
     var selectedDevice: JBLDevice?
     var status: Status = .idle
+    /// Whether the Mac's Bluetooth radio is switched off. Tracked separately from `status`,
+    /// which only reflects Bluetooth while a device is selected.
+    var isBluetoothOff = false
     var selectedMode: ListeningMode?
     /// Spatial audio mode reported by the headphones; nil until reported.
     var selectedSpatialMode: SpatialAudioMode?
