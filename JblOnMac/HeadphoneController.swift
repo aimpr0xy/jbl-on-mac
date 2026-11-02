@@ -35,6 +35,11 @@ struct JBLDevice: Identifiable, Hashable {
 ///   volume limiter write     AA 06 05 00 00 00 20 01 <00 off | 01 on>
 ///   volume limiter query     AA 06 03 00 01 00 20 (assumed from the spatial audio query pattern)
 ///   volume limiter reply     AA 06 05 00 02 00 20 01 <00|01>   (also sent after a change)
+///   call features write      AA 06 .. 00 00 00 <id> ...   (queries use AA 06 03 00 01 00 <id>, replies AA 06 .. 00 02 00 <id> ...)
+///     23  sound level optimizer   AA 06 05 00 00 00 23 01 <00 off | 01 on>
+///     14  call sound setting      AA 06 06 00 00 00 14 02 01 <0 natural | 1 treble | 2 bass>
+///     16  call voice setting      AA 06 07 00 00 00 16 03 FF FF <0 natural | 1 powerful | 2 bright>
+///     0D  voice aware             AA 06 06 00 00 00 0D 02 <00 off | 01 on> <1 low | 2 mid | 3 high>
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -58,6 +63,12 @@ final class HeadphoneController: NSObject {
     private(set) var balance: Int?
     /// Whether the max volume limiter is on; nil until reported.
     private(set) var volumeLimiterEnabled: Bool?
+    /// Call features reported by the headphones; nil until reported.
+    private(set) var soundLevelOptimizerEnabled: Bool?
+    private(set) var callSoundSetting: CallSoundSetting?
+    private(set) var callVoiceSetting: CallVoiceSetting?
+    private(set) var voiceAwareEnabled: Bool?
+    private(set) var voiceAwareLevel: VoiceAwareLevel?
     /// Noise canceling and ambient aware strength (1...7); nil until reported.
     private(set) var noiseCancelingLevel: Int?
     private(set) var ambientAwareLevel: Int?
@@ -194,6 +205,7 @@ final class HeadphoneController: NSObject {
         volumeLimiterEnabled = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
+        clearCallFeatures()
         clearBattery()
         startScanning()
     }
@@ -209,6 +221,7 @@ final class HeadphoneController: NSObject {
         volumeLimiterEnabled = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
+        clearCallFeatures()
         clearBattery()
         status = .idle
         startDiscovery()
@@ -281,6 +294,56 @@ final class HeadphoneController: NSObject {
         volumeLimiterEnabled = enabled
         peripheral.writeValue(Data([0xAA, 0x06, 0x05, 0x00, 0x00, 0x00, 0x20, 0x01, enabled ? 1 : 0]),
                               for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Turns the sound level optimizer on or off.
+    func setSoundLevelOptimizer(_ enabled: Bool) {
+        guard let peripheral, let writeCharacteristic else { return }
+        soundLevelOptimizerEnabled = enabled
+        peripheral.writeValue(Data([0xAA, 0x06, 0x05, 0x00, 0x00, 0x00, 0x23, 0x01, enabled ? 1 : 0]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Sets the sound character used during calls.
+    func select(_ setting: CallSoundSetting) {
+        guard let peripheral, let writeCharacteristic else { return }
+        callSoundSetting = setting
+        peripheral.writeValue(Data([0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x14, 0x02, 0x01, setting.rawValue]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Sets how your voice sounds to the other side of a call.
+    func select(_ setting: CallVoiceSetting) {
+        guard let peripheral, let writeCharacteristic else { return }
+        callVoiceSetting = setting
+        peripheral.writeValue(Data([0xAA, 0x06, 0x07, 0x00, 0x00, 0x00, 0x16, 0x03, 0xFF, 0xFF, setting.rawValue]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Turns voice aware on or off, keeping the current level (mid until one is known).
+    func setVoiceAware(enabled: Bool) {
+        writeVoiceAware(enabled: enabled, level: voiceAwareLevel ?? .mid)
+    }
+
+    /// Sets the voice aware level and turns it on.
+    func select(_ level: VoiceAwareLevel) {
+        writeVoiceAware(enabled: true, level: level)
+    }
+
+    private func writeVoiceAware(enabled: Bool, level: VoiceAwareLevel) {
+        guard let peripheral, let writeCharacteristic else { return }
+        voiceAwareEnabled = enabled
+        voiceAwareLevel = level
+        peripheral.writeValue(Data([0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0D, 0x02, enabled ? 1 : 0, level.rawValue]),
+                              for: writeCharacteristic, type: .withResponse)
+    }
+
+    private func clearCallFeatures() {
+        soundLevelOptimizerEnabled = nil
+        callSoundSetting = nil
+        callVoiceSetting = nil
+        voiceAwareEnabled = nil
+        voiceAwareLevel = nil
     }
 
     private func clearBattery() {
@@ -487,6 +550,28 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         // And whether the max volume limiter is on.
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x20]),
                               for: writeCharacteristic, type: .withResponse)
+        // And the call features: optimizer, sound setting, voice setting, voice aware.
+        for id: UInt8 in [0x23, 0x14, 0x16, 0x0D] {
+            peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, id]),
+                                  for: writeCharacteristic, type: .withResponse)
+        }
+    }
+
+    /// Call feature replies are `AA 06 <len> 00 02 00 <id> ...`; see the protocol notes at the top.
+    private func parseCallFeatures(_ bytes: [UInt8]) {
+        guard bytes.count >= 9, bytes[0] == 0xAA, bytes[1] == 0x06, bytes[4] == 0x02 else { return }
+        switch bytes[6] {
+        case 0x23 where bytes[8] <= 1:
+            soundLevelOptimizerEnabled = bytes[8] == 1
+        case 0x14 where bytes.count >= 10:
+            callSoundSetting = CallSoundSetting(rawValue: bytes[9])
+        case 0x16 where bytes.count >= 11:
+            callVoiceSetting = CallVoiceSetting(rawValue: bytes[10])
+        case 0x0D where bytes.count >= 10 && bytes[8] <= 1:
+            voiceAwareEnabled = bytes[8] == 1
+            voiceAwareLevel = VoiceAwareLevel(rawValue: bytes[9])
+        default: break
+        }
     }
 
     /// Volume limiter replies are `AA 06 05 00 02 00 20 01 <00|01>`.
@@ -567,6 +652,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         parseSmartAudio(bytes)
         parseBalance(bytes)
         parseVolumeLimiter(bytes)
+        parseCallFeatures(bytes)
         parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]

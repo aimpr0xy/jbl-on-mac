@@ -90,6 +90,81 @@ enum SmartAudioMode: CaseIterable, Identifiable {
     }
 }
 
+/// Raw values are the bytes seen in the capture (0, 1, 2 while cycling); which value is which
+/// option was inferred from the order the app lists them.
+enum CallSoundSetting: UInt8, CaseIterable, Identifiable {
+    case natural = 0
+    case increasedTreble = 1
+    case increasedBass = 2
+
+    var id: UInt8 { rawValue }
+
+    var title: String {
+        switch self {
+        case .natural: "Natural"
+        case .increasedTreble: "Increased Treble"
+        case .increasedBass: "Increased Bass"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .natural: "waveform"
+        case .increasedTreble: "hifispeaker"
+        case .increasedBass: "hifispeaker.fill"
+        }
+    }
+}
+
+/// Same inference as `CallSoundSetting`.
+enum CallVoiceSetting: UInt8, CaseIterable, Identifiable {
+    case natural = 0
+    case powerful = 1
+    case bright = 2
+
+    var id: UInt8 { rawValue }
+
+    var title: String {
+        switch self {
+        case .natural: "Natural"
+        case .powerful: "Powerful"
+        case .bright: "Bright"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .natural: "mic"
+        case .powerful: "mic.fill"
+        case .bright: "sparkles"
+        }
+    }
+}
+
+enum VoiceAwareLevel: UInt8, CaseIterable, Identifiable {
+    case low = 1
+    case mid = 2
+    case high = 3
+
+    var id: UInt8 { rawValue }
+
+    var title: String {
+        switch self {
+        case .low: "Low"
+        case .mid: "Mid"
+        case .high: "High"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .low: "speaker.wave.1"
+        case .mid: "speaker.wave.2"
+        case .high: "speaker.wave.3"
+        }
+    }
+}
+
 /// Styled after the Bluetooth and Sound menus in Control Center: a bold header, circular
 /// icon badges that fill with the accent color when active.
 struct ContentView: View {
@@ -98,6 +173,8 @@ struct ContentView: View {
     @State private var detailMode: ListeningMode?
     /// Whether the left / right balance screen is showing.
     @State private var showsBalance = false
+    /// Whether the call features screen is showing.
+    @State private var showsCalls = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -109,6 +186,9 @@ struct ContentView: View {
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 } else if showsBalance {
                     balanceScreen
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else if showsCalls {
+                    callsScreen
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 } else {
                     modeControls(for: device)
@@ -122,6 +202,7 @@ struct ContentView: View {
         .animation(.snappy, value: headphones.status == .connected)
         .animation(.snappy, value: detailMode)
         .animation(.snappy, value: showsBalance)
+        .animation(.snappy, value: showsCalls)
         .clipped()
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
@@ -295,6 +376,112 @@ struct ContentView: View {
                     EmptyView()
                 } action: {
                     headphones.setVolumeLimiter(!limiter)
+                }
+            }
+
+            SelectableRow(
+                systemImage: "phone",
+                title: "Calls",
+                isActive: false
+            ) {
+                Image(systemName: "chevron.right")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            } action: {
+                showsCalls = true
+            }
+        }
+    }
+
+    /// Call features screen, reached from the Calls row. Each section only shows once the
+    /// headphones report its state.
+    private var callsScreen: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Button {
+                    showsCalls = false
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.callout.weight(.semibold))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+
+                Text("Calls")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            if let optimizer = headphones.soundLevelOptimizerEnabled {
+                SelectableRow(
+                    systemImage: "ear.badge.waveform",
+                    title: "Sound Level Optimizer",
+                    isActive: optimizer
+                ) {
+                    EmptyView()
+                } action: {
+                    headphones.setSoundLevelOptimizer(!optimizer)
+                }
+            }
+
+            if headphones.callSoundSetting != nil {
+                sectionTitle("Sound Setting")
+                    .padding(.top, 8)
+                ForEach(CallSoundSetting.allCases) { option in
+                    SelectableRow(
+                        systemImage: option.systemImage,
+                        title: option.title,
+                        isActive: headphones.callSoundSetting == option
+                    ) {
+                        EmptyView()
+                    } action: {
+                        headphones.select(option)
+                    }
+                }
+            }
+
+            if headphones.callVoiceSetting != nil {
+                sectionTitle("Voice Setting")
+                    .padding(.top, 8)
+                ForEach(CallVoiceSetting.allCases) { option in
+                    SelectableRow(
+                        systemImage: option.systemImage,
+                        title: option.title,
+                        isActive: headphones.callVoiceSetting == option
+                    ) {
+                        EmptyView()
+                    } action: {
+                        headphones.select(option)
+                    }
+                }
+            }
+
+            if let voiceAware = headphones.voiceAwareEnabled {
+                sectionTitle("Voice Aware")
+                    .padding(.top, 8)
+                SelectableRow(
+                    systemImage: "slash.circle",
+                    title: "Off",
+                    isActive: !voiceAware
+                ) {
+                    EmptyView()
+                } action: {
+                    headphones.setVoiceAware(enabled: false)
+                }
+                ForEach(VoiceAwareLevel.allCases) { option in
+                    SelectableRow(
+                        systemImage: option.systemImage,
+                        title: option.title,
+                        isActive: voiceAware && headphones.voiceAwareLevel == option
+                    ) {
+                        EmptyView()
+                    } action: {
+                        headphones.select(option)
+                    }
                 }
             }
         }
