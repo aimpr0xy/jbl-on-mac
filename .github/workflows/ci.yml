@@ -19,7 +19,22 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Build and test
+      # The test target doesn't declare a dependency on the app, so build the app first;
+      # the tests import it and run hosted inside it.
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project JblOnMac.xcodeproj \
+            -scheme JblOnMac \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log
+
+      - name: Test
         run: |
           set -o pipefail
           xcodebuild test \
@@ -30,11 +45,13 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            | tee build.log
+            | tee test.log
 
       - name: Upload build log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: build.log
+          path: |
+            build.log
+            test.log
