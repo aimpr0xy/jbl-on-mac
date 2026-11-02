@@ -103,6 +103,27 @@ enum JBLCommand: Equatable {
         }
     }
 
+    /// The query that makes the headphones report the state this write changes, so the real value
+    /// can be restored if the write fails. Nil for queries and for writes that have no query.
+    var refreshQuery: JBLCommand? {
+        switch self {
+        case .setListeningMode: return .queryListeningMode
+        case .setLevel: return .queryLevels
+        case .setSpatialAudio: return .querySpatialAudio
+        case .setSmartAudio: return .querySmartAudio
+        case .setBalance: return .queryBalance
+        case .setVolumeLimiter: return .queryVolumeLimiter
+        case .setSoundLevelOptimizer: return .queryCallFeature(id: 0x23)
+        case .setCallSound: return .queryCallFeature(id: 0x14)
+        case .setCallVoice: return .queryCallFeature(id: 0x16)
+        case .setVoiceAware: return .queryCallFeature(id: 0x0D)
+        case .setEqualizer, .queryListeningMode, .queryLevels, .queryEarbudBattery,
+             .queryCaseBattery, .querySmartAudio, .querySpatialAudio, .queryBalance,
+             .queryVolumeLimiter, .queryCallFeature:
+            return nil
+        }
+    }
+
     private static func littleEndian(_ value: Float) -> [UInt8] {
         withUnsafeBytes(of: value.bitPattern.littleEndian) { Array($0) }
     }

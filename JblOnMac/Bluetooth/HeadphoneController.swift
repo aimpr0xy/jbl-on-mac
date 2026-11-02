@@ -59,6 +59,9 @@ final class HeadphoneController: NSObject {
     @ObservationIgnored var central: CBCentralManager!
     @ObservationIgnored var peripheral: CBPeripheral?
     @ObservationIgnored var writeCharacteristic: CBCharacteristic?
+    /// Commands written but not yet acknowledged, oldest first; write-with-response results
+    /// arrive in order, and the callback doesn't say which command it is for.
+    @ObservationIgnored var pendingWrites: [JBLCommand] = []
 
     @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
     @ObservationIgnored var isDiscovering = false
@@ -156,7 +159,23 @@ final class HeadphoneController: NSObject {
     /// Writes a command to the headphones; does nothing until the BLE link is ready.
     func send(_ command: JBLCommand) {
         guard let peripheral, let writeCharacteristic else { return }
+        pendingWrites.append(command)
         peripheral.writeValue(Data(command.bytes), for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Called when the headphones confirm or reject the oldest outstanding write. The UI is
+    /// updated optimistically, so a failed write must be undone: ask the headphones for the real
+    /// state, or forget the value when there's no query for it.
+    func writeCompleted(error: Error?) {
+        guard !pendingWrites.isEmpty else { return }
+        let command = pendingWrites.removeFirst()
+        guard let error else { return }
+        log.error("write failed for \(String(describing: command), privacy: .public): \(error.localizedDescription, privacy: .public)")
+        if let query = command.refreshQuery {
+            send(query)
+        } else if case .setEqualizer = command {
+            selectedEqualizer = nil
+        }
     }
 
     /// Whether the BLE link is ready for writes.
@@ -375,6 +394,7 @@ final class HeadphoneController: NSObject {
         }
         peripheral = nil
         writeCharacteristic = nil
+        pendingWrites.removeAll()
     }
 
     /// Delegate callback for `IOBluetoothDevice.openConnection(_:)`.

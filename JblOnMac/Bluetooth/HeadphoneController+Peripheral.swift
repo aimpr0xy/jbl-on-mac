@@ -15,6 +15,12 @@ extension HeadphoneController: CBPeripheralDelegate {
     }
 
     func peripheral(_ peripheral: CBPeripheral,
+                    didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard characteristic.uuid == writeUUID else { return }
+        writeCompleted(error: error)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == JBLUUID.notify, let bytes = characteristic.value.map([UInt8].init) else { return }
         for reply in JBLReply.decode(bytes) {
