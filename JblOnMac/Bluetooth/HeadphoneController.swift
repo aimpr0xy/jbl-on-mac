@@ -25,30 +25,8 @@ final class HeadphoneController: NSObject {
     /// Whether the Mac's Bluetooth radio is switched off. Tracked separately from `status`,
     /// which only reflects Bluetooth while a device is selected.
     var isBluetoothOff = false
-    var selectedMode: ListeningMode?
-    /// Spatial audio mode reported by the headphones; nil until reported.
-    var selectedSpatialMode: SpatialAudioMode?
-    /// Smart audio and video mode reported by the headphones; nil until reported.
-    var selectedSmartMode: SmartAudioMode?
-    /// Left / right sound balance (-16 left ... 16 right); nil until reported.
-    var balance: Int?
-    /// Whether the max volume limiter is on; nil until reported.
-    var volumeLimiterEnabled: Bool?
-    /// Equalizer preset last set or reported; nil until known.
-    var selectedEqualizer: EqualizerPreset?
-    /// Call features reported by the headphones; nil until reported.
-    var soundLevelOptimizerEnabled: Bool?
-    var callSoundSetting: CallSoundSetting?
-    var callVoiceSetting: CallVoiceSetting?
-    var voiceAwareEnabled: Bool?
-    var voiceAwareLevel: VoiceAwareLevel?
-    /// Noise canceling and ambient aware strength (1...7); nil until reported.
-    var noiseCancelingLevel: Int?
-    var ambientAwareLevel: Int?
-    /// Battery percentages reported by the headphones; nil until reported.
-    var leftBattery: Int?
-    var rightBattery: Int?
-    var caseBattery: Int?
+    /// Values reported by the selected headphones; reset as a whole when the selection changes.
+    var state = DeviceState()
     /// Address of the device currently being paired / connected from the list.
     var connectingAddress: String?
     var connectionError: String?
@@ -125,16 +103,7 @@ final class HeadphoneController: NSObject {
         failedAttempts = 0
         connectionError = nil
         selectedDevice = device
-        selectedMode = nil
-        selectedSpatialMode = nil
-        selectedSmartMode = nil
-        balance = nil
-        volumeLimiterEnabled = nil
-        selectedEqualizer = nil
-        noiseCancelingLevel = nil
-        ambientAwareLevel = nil
-        clearCallFeatures()
-        clearBattery()
+        state = DeviceState()
         startScanning()
     }
 
@@ -142,16 +111,7 @@ final class HeadphoneController: NSObject {
     func deselect() {
         disconnect()
         selectedDevice = nil
-        selectedMode = nil
-        selectedSpatialMode = nil
-        selectedSmartMode = nil
-        balance = nil
-        volumeLimiterEnabled = nil
-        selectedEqualizer = nil
-        noiseCancelingLevel = nil
-        ambientAwareLevel = nil
-        clearCallFeatures()
-        clearBattery()
+        state = DeviceState()
         status = .idle
         startDiscovery()
     }
@@ -174,7 +134,7 @@ final class HeadphoneController: NSObject {
         if let query = command.refreshQuery {
             send(query)
         } else if case .setEqualizer = command {
-            selectedEqualizer = nil
+            state.equalizer = nil
         }
     }
 
@@ -185,7 +145,7 @@ final class HeadphoneController: NSObject {
     func select(_ mode: ListeningMode) {
         guard canSend else { return }
         send(.setListeningMode(mode))
-        selectedMode = mode
+        state.mode = mode
     }
 
     /// Sets the strength (1...7) of noise canceling or ambient aware.
@@ -194,11 +154,11 @@ final class HeadphoneController: NSObject {
         let level = min(max(level, 1), 7)
         switch mode {
         case .noiseCanceling:
-            guard noiseCancelingLevel != level else { return }
-            noiseCancelingLevel = level
+            guard state.noiseCancelingLevel != level else { return }
+            state.noiseCancelingLevel = level
         case .ambientAware:
-            guard ambientAwareLevel != level else { return }
-            ambientAwareLevel = level
+            guard state.ambientAwareLevel != level else { return }
+            state.ambientAwareLevel = level
         case .talkThru, .off:
             return
         }
@@ -209,22 +169,22 @@ final class HeadphoneController: NSObject {
     func select(_ spatial: SpatialAudioMode) {
         guard canSend else { return }
         send(.setSpatialAudio(spatial))
-        selectedSpatialMode = spatial
+        state.spatialMode = spatial
     }
 
     /// Sends the smart audio and video command for the given mode.
     func select(_ smart: SmartAudioMode) {
         guard canSend else { return }
         send(.setSmartAudio(smart))
-        selectedSmartMode = smart
+        state.smartMode = smart
     }
 
     /// Sets the left / right balance (-16 left ... 16 right).
     func setBalance(_ value: Int) {
         guard canSend else { return }
         let value = min(max(value, -16), 16)
-        guard balance != value else { return }
-        balance = value
+        guard state.balance != value else { return }
+        state.balance = value
         send(.setBalance(value))
     }
 
@@ -232,40 +192,40 @@ final class HeadphoneController: NSObject {
     func select(_ preset: EqualizerPreset) {
         guard canSend else { return }
         send(.setEqualizer(preset))
-        selectedEqualizer = preset
+        state.equalizer = preset
     }
 
     /// Turns the max volume limiter on or off.
     func setVolumeLimiter(_ enabled: Bool) {
         guard canSend else { return }
-        volumeLimiterEnabled = enabled
+        state.volumeLimiterEnabled = enabled
         send(.setVolumeLimiter(enabled))
     }
 
     /// Turns the sound level optimizer on or off.
     func setSoundLevelOptimizer(_ enabled: Bool) {
         guard canSend else { return }
-        soundLevelOptimizerEnabled = enabled
+        state.soundLevelOptimizerEnabled = enabled
         send(.setSoundLevelOptimizer(enabled))
     }
 
     /// Sets the sound character used during calls.
     func select(_ setting: CallSoundSetting) {
         guard canSend else { return }
-        callSoundSetting = setting
+        state.callSoundSetting = setting
         send(.setCallSound(setting))
     }
 
     /// Sets how your voice sounds to the other side of a call.
     func select(_ setting: CallVoiceSetting) {
         guard canSend else { return }
-        callVoiceSetting = setting
+        state.callVoiceSetting = setting
         send(.setCallVoice(setting))
     }
 
     /// Turns voice aware on or off, keeping the current level (mid until one is known).
     func setVoiceAware(enabled: Bool) {
-        writeVoiceAware(enabled: enabled, level: voiceAwareLevel ?? .mid)
+        writeVoiceAware(enabled: enabled, level: state.voiceAwareLevel ?? .mid)
     }
 
     /// Sets the voice aware level and turns it on.
@@ -275,23 +235,9 @@ final class HeadphoneController: NSObject {
 
     func writeVoiceAware(enabled: Bool, level: VoiceAwareLevel) {
         guard canSend else { return }
-        voiceAwareEnabled = enabled
-        voiceAwareLevel = level
+        state.voiceAwareEnabled = enabled
+        state.voiceAwareLevel = level
         send(.setVoiceAware(enabled: enabled, level: level))
-    }
-
-    func clearCallFeatures() {
-        soundLevelOptimizerEnabled = nil
-        callSoundSetting = nil
-        callVoiceSetting = nil
-        voiceAwareEnabled = nil
-        voiceAwareLevel = nil
-    }
-
-    func clearBattery() {
-        leftBattery = nil
-        rightBattery = nil
-        caseBattery = nil
     }
 
     func startScanning() {

@@ -14,7 +14,7 @@ struct CallFeaturesScreen: View {
                 EmptyView()
             }
 
-            if let optimizer = headphones.soundLevelOptimizerEnabled {
+            if let optimizer = headphones.state.soundLevelOptimizerEnabled {
                 SelectableRow(
                     systemImage: "ear.badge.waveform",
                     title: "Sound Level Optimizer",
@@ -26,14 +26,14 @@ struct CallFeaturesScreen: View {
                 }
             }
 
-            if headphones.callSoundSetting != nil {
+            if headphones.state.callSoundSetting != nil {
                 SectionTitle("Sound Setting")
                     .padding(.top, 8)
                 ForEach(CallSoundSetting.allCases) { option in
                     SelectableRow(
                         systemImage: option.systemImage,
                         title: option.title,
-                        isActive: headphones.callSoundSetting == option
+                        isActive: headphones.state.callSoundSetting == option
                     ) {
                         EmptyView()
                     } action: {
@@ -42,14 +42,14 @@ struct CallFeaturesScreen: View {
                 }
             }
 
-            if headphones.callVoiceSetting != nil {
+            if headphones.state.callVoiceSetting != nil {
                 SectionTitle("Voice Setting")
                     .padding(.top, 8)
                 ForEach(CallVoiceSetting.allCases) { option in
                     SelectableRow(
                         systemImage: option.systemImage,
                         title: option.title,
-                        isActive: headphones.callVoiceSetting == option
+                        isActive: headphones.state.callVoiceSetting == option
                     ) {
                         EmptyView()
                     } action: {
@@ -58,7 +58,7 @@ struct CallFeaturesScreen: View {
                 }
             }
 
-            if let voiceAware = headphones.voiceAwareEnabled {
+            if let voiceAware = headphones.state.voiceAwareEnabled {
                 SectionTitle("Voice Aware")
                     .padding(.top, 8)
                 SelectableRow(
@@ -74,7 +74,7 @@ struct CallFeaturesScreen: View {
                     SelectableRow(
                         systemImage: option.systemImage,
                         title: option.title,
-                        isActive: voiceAware && headphones.voiceAwareLevel == option
+                        isActive: voiceAware && headphones.state.voiceAwareLevel == option
                     ) {
                         EmptyView()
                     } action: {

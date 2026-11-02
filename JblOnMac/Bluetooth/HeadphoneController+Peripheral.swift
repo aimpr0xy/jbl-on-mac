@@ -31,25 +31,25 @@ extension HeadphoneController: CBPeripheralDelegate {
     /// Copies a decoded reply into the observable state.
     func apply(_ reply: JBLReply) {
         switch reply {
-        case .listeningMode(let mode): selectedMode = mode
-        case .noiseCancelingLevel(let level): noiseCancelingLevel = level
-        case .ambientAwareLevel(let level): ambientAwareLevel = level
-        case .spatialAudio(let mode): selectedSpatialMode = mode
-        case .smartAudio(let mode): selectedSmartMode = mode
-        case .balance(let value): balance = value
-        case .volumeLimiter(let enabled): volumeLimiterEnabled = enabled
-        case .equalizer(let preset): selectedEqualizer = preset
-        case .soundLevelOptimizer(let enabled): soundLevelOptimizerEnabled = enabled
-        case .callSound(let setting): callSoundSetting = setting
-        case .callVoice(let setting): callVoiceSetting = setting
+        case .listeningMode(let mode): state.mode = mode
+        case .noiseCancelingLevel(let level): state.noiseCancelingLevel = level
+        case .ambientAwareLevel(let level): state.ambientAwareLevel = level
+        case .spatialAudio(let mode): state.spatialMode = mode
+        case .smartAudio(let mode): state.smartMode = mode
+        case .balance(let value): state.balance = value
+        case .volumeLimiter(let enabled): state.volumeLimiterEnabled = enabled
+        case .equalizer(let preset): state.equalizer = preset
+        case .soundLevelOptimizer(let enabled): state.soundLevelOptimizerEnabled = enabled
+        case .callSound(let setting): state.callSoundSetting = setting
+        case .callVoice(let setting): state.callVoiceSetting = setting
         case .voiceAware(let enabled, let level):
-            voiceAwareEnabled = enabled
-            voiceAwareLevel = level
+            state.voiceAwareEnabled = enabled
+            state.voiceAwareLevel = level
         case .battery(let part, let percent):
             switch part {
-            case .left: leftBattery = percent
-            case .right: rightBattery = percent
-            case .chargingCase: caseBattery = percent
+            case .left: state.leftBattery = percent
+            case .right: state.rightBattery = percent
+            case .chargingCase: state.caseBattery = percent
             }
         }
     }

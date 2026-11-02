@@ -17,7 +17,7 @@ struct EqualizerScreen: View {
                 SelectableRow(
                     systemImage: option.systemImage,
                     title: option.title,
-                    isActive: headphones.selectedEqualizer == option
+                    isActive: headphones.state.equalizer == option
                 ) {
                     EmptyView()
                 } action: {
