@@ -29,6 +29,9 @@ struct JBLDevice: Identifiable, Hashable {
 ///   smart audio/video write  AA 80 09 00 | <8 payload bytes, see SmartAudioMode>
 ///   smart audio/video query  AA 80 01 01
 ///   smart audio/video reply  AA 80 09 02 | <8 payload bytes>   (also sent after a change)
+///   balance write            AA A8 05 00 01 01 02 <100 + balance>   (0x54 = -16 left ... 0x74 = +16 right)
+///   balance query            AA A8 01 01 (assumed from the other features' query pattern)
+///   balance reply            AA A8 05 02 01 01 02 <100 + balance>   (also sent after a change)
 @Observable
 final class HeadphoneController: NSObject {
     enum Status: Equatable {
@@ -48,6 +51,8 @@ final class HeadphoneController: NSObject {
     private(set) var selectedSpatialMode: SpatialAudioMode?
     /// Smart audio and video mode reported by the headphones; nil until reported.
     private(set) var selectedSmartMode: SmartAudioMode?
+    /// Left / right sound balance (-16 left ... 16 right); nil until reported.
+    private(set) var balance: Int?
     /// Noise canceling and ambient aware strength (1...7); nil until reported.
     private(set) var noiseCancelingLevel: Int?
     private(set) var ambientAwareLevel: Int?
@@ -180,6 +185,7 @@ final class HeadphoneController: NSObject {
         selectedMode = nil
         selectedSpatialMode = nil
         selectedSmartMode = nil
+        balance = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -193,6 +199,7 @@ final class HeadphoneController: NSObject {
         selectedMode = nil
         selectedSpatialMode = nil
         selectedSmartMode = nil
+        balance = nil
         noiseCancelingLevel = nil
         ambientAwareLevel = nil
         clearBattery()
@@ -249,6 +256,16 @@ final class HeadphoneController: NSObject {
         let packet = Data([0xAA, 0x80, 0x09, 0x00] + smart.payload)
         peripheral.writeValue(packet, for: writeCharacteristic, type: .withResponse)
         selectedSmartMode = smart
+    }
+
+    /// Sets the left / right balance (-16 left ... 16 right).
+    func setBalance(_ value: Int) {
+        guard let peripheral, let writeCharacteristic else { return }
+        let value = min(max(value, -16), 16)
+        guard balance != value else { return }
+        balance = value
+        peripheral.writeValue(Data([0xAA, 0xA8, 0x05, 0x00, 0x01, 0x01, 0x02, UInt8(100 + value)]),
+                              for: writeCharacteristic, type: .withResponse)
     }
 
     private func clearBattery() {
@@ -450,6 +467,15 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         // And which spatial audio mode is active.
         peripheral.writeValue(Data([0xAA, 0x06, 0x03, 0x00, 0x01, 0x00, 0x0C]),
                               for: writeCharacteristic, type: .withResponse)
+        // And the left / right balance.
+        peripheral.writeValue(Data([0xAA, 0xA8, 0x01, 0x01]), for: writeCharacteristic, type: .withResponse)
+    }
+
+    /// Balance replies are `AA A8 05 02 01 <enabled> 02 <100 + balance>`.
+    private func parseBalance(_ bytes: [UInt8]) {
+        guard bytes.count >= 8, bytes[0] == 0xAA, bytes[1] == 0xA8, bytes[3] == 0x02,
+              bytes[6] == 0x02, (84...116).contains(Int(bytes[7])) else { return }
+        balance = Int(bytes[7]) - 100
     }
 
     /// Level replies are `AA 91 05 22` followed by `<id> <level>` pairs (04 = noise canceling,
@@ -514,6 +540,7 @@ extension HeadphoneController: @preconcurrency CBPeripheralDelegate {
         parseBattery(bytes)
         parseSpatialAudio(bytes)
         parseSmartAudio(bytes)
+        parseBalance(bytes)
         parseLevels(bytes)
         guard bytes.count >= 10, bytes[0] == 0xAA, bytes[1] == 0x91, bytes[3] == 0x12 else { return }
         let flags = [bytes[5], bytes[7], bytes[9]]

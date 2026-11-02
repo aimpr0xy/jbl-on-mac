@@ -96,6 +96,8 @@ struct ContentView: View {
     let headphones: HeadphoneController
     /// Mode whose strength screen is showing, if any.
     @State private var detailMode: ListeningMode?
+    /// Whether the left / right balance screen is showing.
+    @State private var showsBalance = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -104,6 +106,9 @@ struct ContentView: View {
             if let device = headphones.selectedDevice, headphones.status == .connected {
                 if let mode = detailMode {
                     levelScreen(for: mode)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else if showsBalance {
+                    balanceScreen
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 } else {
                     modeControls(for: device)
@@ -116,6 +121,7 @@ struct ContentView: View {
         }
         .animation(.snappy, value: headphones.status == .connected)
         .animation(.snappy, value: detailMode)
+        .animation(.snappy, value: showsBalance)
         .clipped()
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
@@ -264,6 +270,20 @@ struct ContentView: View {
                     }
                 }
             }
+
+            sectionTitle("Sound")
+                .padding(.top, 8)
+            SelectableRow(
+                systemImage: "arrow.left.and.right",
+                title: "Balance",
+                isActive: false
+            ) {
+                Image(systemName: "chevron.right")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            } action: {
+                showsBalance = true
+            }
         }
     }
 
@@ -326,6 +346,48 @@ struct ContentView: View {
         .padding(.horizontal, 8)
         .padding(.bottom, 4)
         .accessibilityLabel("\(mode.rawValue) level")
+    }
+
+    /// Third-level screen with the left / right balance slider (-16 ... 16), reached from the Balance row.
+    private var balanceScreen: some View {
+        let binding = Binding<Double>(
+            get: { Double(headphones.balance ?? 0) },
+            set: { headphones.setBalance(Int($0)) }
+        )
+        let value = headphones.balance ?? 0
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Button {
+                    showsBalance = false
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.callout.weight(.semibold))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+
+                Text("Balance")
+                    .font(.headline)
+                Spacer()
+                Text(value == 0 ? "Center" : "\(value < 0 ? "L" : "R") \(abs(value))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            HStack(spacing: 8) {
+                Text("L").foregroundStyle(.secondary)
+                Slider(value: binding, in: -16...16, step: 1)
+                Text("R").foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
+            .accessibilityLabel("Left right balance")
+        }
     }
 
     private func sectionTitle(_ title: String) -> some View {
