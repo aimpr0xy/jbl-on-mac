@@ -310,10 +310,12 @@ final class HeadphoneController: NSObject {
         central.scanForPeripherals(withServices: nil)
     }
 
-    /// Whether a BLE name is the same as the selected device's classic Bluetooth name.
+    /// Whether a BLE name is the same as the selected device's classic Bluetooth name. The LE side
+    /// advertises that name with an "-LE" suffix (e.g. "JBL Tune Beam 2-LE"), which still counts.
     func matchesSelectedDeviceExactly(name: String?) -> Bool {
         guard let name, let target = selectedDevice else { return false }
         return name.caseInsensitiveCompare(target.name) == .orderedSame
+            || name.caseInsensitiveCompare(target.name + "-LE") == .orderedSame
     }
 
     /// The BLE name can differ slightly from the classic Bluetooth name, so any JBL is a
@@ -329,6 +331,7 @@ final class HeadphoneController: NSObject {
         self.peripheral = peripheral
         peripheral.delegate = self
         status = .connecting
+        log.notice("connectToHeadphones state=\(peripheral.state.rawValue) name=\(peripheral.name ?? "nil", privacy: .public)")
         if peripheral.state == .connected {
             peripheral.discoverServices(nil)
         } else {

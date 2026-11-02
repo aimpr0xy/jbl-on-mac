@@ -40,6 +40,7 @@ extension HeadphoneController: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        log.notice("didConnect \(peripheral.identifier.uuidString, privacy: .public) name=\(peripheral.name ?? "nil", privacy: .public)")
         rememberedIdentifier = peripheral.identifier
         expectedDisconnects.remove(peripheral.identifier)
         peripheral.discoverServices(nil)
