@@ -73,6 +73,7 @@ extension HeadphoneController: CBPeripheralDelegate {
                 // connects but never shows its services should still count toward giving up.
                 failedAttempts = 0
                 status = .connected
+                rememberSelectedDevice()
             }
         }
     }
