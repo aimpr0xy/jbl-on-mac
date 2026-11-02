@@ -1,0 +1,84 @@
+name: Bug report
+description: Something in JBL on Mac doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. The more detail you give, the faster it can be fixed.
+        If a feature doesn't work on a device that isn't in the README compatibility table,
+        please follow [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md#reporting-device-compatibility) instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's wrong? Describe the problem in a few sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps that make the problem happen.
+      placeholder: |
+        1. Open the menu bar popup
+        2. Choose your headphones
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Run this in Terminal while reproducing the problem and paste the output:
+        `log stream --level debug --predicate 'subsystem == "JblOnMac"'`
+      render: shell
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: JBL model and firmware version, if known.
+      placeholder: JBL Tune Beam 2, firmware 1.2.3
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 27.0
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version or commit
+      placeholder: 1.0 or ae1ef64
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, PacketLogger captures, other Bluetooth devices nearby, anything else.
