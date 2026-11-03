@@ -4,6 +4,8 @@ import Foundation
 /// device. Every value is nil until known. Replacing it with `DeviceState()` resets all of it,
 /// so a new field can't be forgotten when switching devices.
 struct DeviceState {
+    /// Model, firmware and other details from the Device Information service.
+    var info = DeviceInfo()
     var mode: ListeningMode?
     var spatialMode: SpatialAudioMode?
     var smartMode: SmartAudioMode?

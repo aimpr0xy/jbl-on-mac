@@ -25,6 +25,14 @@ extension HeadphoneController: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
+        if characteristic.service?.uuid == DeviceInfo.service {
+            guard let data = characteristic.value else { return }
+            if state.info.set(DeviceInfo.string(from: data), for: characteristic.uuid) {
+                savedDeviceInfo = state.info
+                log("device info \(characteristic.uuid.uuidString) updated")
+            }
+            return
+        }
         guard characteristic.uuid == JBLUUID.notify, let bytes = characteristic.value.map([UInt8].init) else { return }
         for reply in JBLReply.decode(bytes) {
             apply(reply)
@@ -61,16 +69,27 @@ extension HeadphoneController: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
-        log.notice("didDiscoverServices \((peripheral.services ?? []).map { $0.uuid.uuidString }, privacy: .public) error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
+        log("didDiscoverServices \((peripheral.services ?? []).map { $0.uuid.uuidString }) error=\(error.map { String(describing: $0) } ?? "nil")")
         for service in peripheral.services ?? [] {
-            peripheral.discoverCharacteristics([writeUUID, notifyUUID], for: service)
+            if service.uuid == DeviceInfo.service {
+                peripheral.discoverCharacteristics(DeviceInfo.characteristics, for: service)
+            } else {
+                peripheral.discoverCharacteristics([writeUUID, notifyUUID], for: service)
+            }
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
-        log.notice("didDiscoverCharacteristics service=\(service.uuid.uuidString, privacy: .public) \((service.characteristics ?? []).map { $0.uuid.uuidString }, privacy: .public) error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
+        log("didDiscoverCharacteristics service=\(service.uuid.uuidString) \((service.characteristics ?? []).map { $0.uuid.uuidString }) error=\(error.map { String(describing: $0) } ?? "nil")")
+        // Read the model, firmware and so on, so they show up in every following log line.
+        if service.uuid == DeviceInfo.service {
+            for characteristic in service.characteristics ?? [] {
+                peripheral.readValue(for: characteristic)
+            }
+            return
+        }
         for characteristic in service.characteristics ?? [] {
             if characteristic.uuid == notifyUUID {
                 peripheral.setNotifyValue(true, for: characteristic)
