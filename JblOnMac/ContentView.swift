@@ -62,12 +62,10 @@ struct ContentView: View {
         .padding(.horizontal, 10)
         .frame(width: 280)
         .task {
-            // Look for nearby JBL products and keep the list fresh while the popup is open.
+            // Show the paired devices right away; after that the list only changes when an inquiry
+            // for nearby JBL products completes.
+            headphones.refreshDevices()
             headphones.startDiscovery()
-            while !Task.isCancelled {
-                headphones.refreshDevices()
-                try? await Task.sleep(for: .seconds(2))
-            }
         }
         .onDisappear { headphones.stopDiscovery() }
     }

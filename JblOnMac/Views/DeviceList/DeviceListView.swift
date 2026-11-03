@@ -24,14 +24,6 @@ struct DeviceListView: View {
                     DeviceRow(headphones: headphones, device: device)
                 }
             }
-
-            if let error = headphones.connectionError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 8)
-                    .padding(.top, 4)
-            }
         }
     }
 

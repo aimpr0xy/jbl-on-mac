@@ -40,7 +40,6 @@ final class HeadphoneController: NSObject {
     var state = DeviceState()
     /// Address of the device currently being paired / connected from the list.
     var connectingAddress: String?
-    var connectionError: LocalizedStringResource?
 
     /// The protocol dialect of the selected device.
     var model: JBLModel {
@@ -66,7 +65,12 @@ final class HeadphoneController: NSObject {
 
     @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
     @ObservationIgnored var isDiscovering = false
+    /// The wait between one inquiry and the next; cancelled when discovery stops.
+    /// Whether the device lookup was running when a connect started and should come back after it.
+    @ObservationIgnored var resumeDiscoveryAfterConnect = false
+    @ObservationIgnored var inquiryPause: Task<Void, Never>?
     @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
+    @ObservationIgnored var nearbyTracker = NearbyTracker()
     @ObservationIgnored var pairing: IOBluetoothDevicePair?
 
     /// Decides when to connect, retry, time out and give up; this class carries out its actions.
@@ -190,7 +194,6 @@ final class HeadphoneController: NSObject {
     func select(_ device: JBLDevice) {
         disconnect()
         stopDiscovery()
-        connectionError = nil
         selectedDevice = device
         state = DeviceState()
         state.info = savedDeviceInfo ?? DeviceInfo()
@@ -504,13 +507,11 @@ final class HeadphoneController: NSObject {
         }
     }
 
-    /// Stops retrying and goes back to the device list with an error, so the app doesn't keep
-    /// the radio busy forever when the headphones are off or out of range.
+    /// Stops retrying and goes back to the device list, so the app doesn't keep the radio busy
+    /// forever when the headphones are off or out of range.
     func giveUpConnecting() {
-        let name = selectedDevice?.name ?? String(localized: "the headphones")
         log("giving up after \(self.machine.failedAttempts) failed attempts")
         deselect(forgetLastDevice: false)
-        connectionError = LocalizedStringResource("Couldn't reach \(name). Make sure it's turned on and nearby, then try again.")
     }
 
     /// Drops the link and stops everything the state machine had running.
@@ -528,6 +529,7 @@ final class HeadphoneController: NSObject {
 
     /// Delegate callback for `IOBluetoothDevice.openConnection(_:)`.
     @objc func connectionComplete(_ device: IOBluetoothDevice!, status: IOReturn) {
-        finishConnecting(error: status == kIOReturnSuccess ? nil : "Couldn't connect")
+        if status != kIOReturnSuccess { log("couldn't connect through macOS", level: .error) }
+        finishConnecting()
     }
 }

@@ -7,18 +7,19 @@ struct SelectableRow<Trailing: View>: View {
     let title: LocalizedStringResource
     var subtitle: String?
     let isActive: Bool
+    /// Replaces the icon with a spinner, in the badge's current color.
+    var isBusy = false
     @ViewBuilder let trailing: Trailing
     let action: () -> Void
 
     @State private var isHovering = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isActive ? Color.white : Color.primary)
+                badgeIcon
                     .frame(width: 24, height: 24)
                     .background(Circle().fill(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary)))
 
@@ -45,5 +46,21 @@ struct SelectableRow<Trailing: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+    }
+
+    @ViewBuilder
+    private var badgeIcon: some View {
+        if isBusy {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.6)
+                .accessibilityLabel("Connecting")
+                // Light spinner on the accent-filled badge; the default one suits the gray badge.
+                .environment(\.colorScheme, isActive ? .dark : colorScheme)
+        } else {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isActive ? Color.white : Color.primary)
+        }
     }
 }
