@@ -11,7 +11,12 @@ struct LevelScreen: View {
             BackHeader(title: mode.title) {
                 screen = .ambientSound
             } trailing: {
-                EmptyView()
+                // The current strength, top right, like the Balance screen.
+                if let level = headphones.state.level(for: mode) {
+                    Text("Level \(level)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             slider
