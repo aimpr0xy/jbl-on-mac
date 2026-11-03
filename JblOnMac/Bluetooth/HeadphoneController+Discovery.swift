@@ -68,7 +68,7 @@ extension HeadphoneController {
         }
     }
 
-    func finishConnecting(error: String?) {
+    func finishConnecting(error: LocalizedStringResource?) {
         connectingAddress = nil
         pairing = nil
         connectionError = error

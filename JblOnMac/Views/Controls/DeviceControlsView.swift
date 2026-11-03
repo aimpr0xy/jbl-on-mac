@@ -131,17 +131,18 @@ struct DeviceControlsView: View {
     /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.
     @ViewBuilder
     private var batteryRow: some View {
-        let levels: [(label: String, symbol: String, percent: Int?)] = [
-            ("Left", "l.circle", headphones.state.leftBattery),
-            ("Right", "r.circle", headphones.state.rightBattery),
-            ("Case", "earbuds.case", headphones.state.caseBattery),
+        // Each part has its own spoken label, so translators can word and order it freely.
+        let levels: [(symbol: String, percent: Int?, spoken: (Int) -> String)] = [
+            ("l.circle", headphones.state.leftBattery, { String(localized: "Left \($0) percent") }),
+            ("r.circle", headphones.state.rightBattery, { String(localized: "Right \($0) percent") }),
+            ("earbuds.case", headphones.state.caseBattery, { String(localized: "Case \($0) percent") }),
         ]
         if levels.contains(where: { $0.percent != nil }) {
             HStack(spacing: 14) {
-                ForEach(levels, id: \.label) { level in
+                ForEach(levels, id: \.symbol) { level in
                     if let percent = level.percent {
                         Label("\(percent)%", systemImage: level.symbol)
-                            .accessibilityLabel("\(level.label) \(percent) percent")
+                            .accessibilityLabel(level.spoken(percent))
                     }
                 }
             }
