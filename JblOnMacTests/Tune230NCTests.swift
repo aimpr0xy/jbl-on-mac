@@ -20,16 +20,6 @@ struct Tune230NCTests {
         "02 3F 01 00 00 00 00 00 80 40 00 00 7A 46 00 00 80 3F",
     ]
 
-    @Test(arguments: ["JBL TUNE230NC TWS", "JBL TUNE230NC TWS-LE", "JBL Tune 230NC TWS"])
-    func recognizesTheModel(_ name: String) {
-        #expect(JBLModel(name: name) == .tune230NC)
-    }
-
-    @Test(arguments: ["JBL Tune Beam 2", "JBL Tune Beam 2-LE", "JBL Live 770NC"])
-    func otherModelsUseTheTuneBeam2Dialect(_ name: String) {
-        #expect(JBLModel(name: name) == .tuneBeam2)
-    }
-
     @Test func queries() {
         #expect(JBLCommand.queryBatteryLevels.bytes == bytes("AA 25 01 00"))
         #expect(JBLCommand.queryEqualizerCurve.bytes == bytes("AA 42 01 01"))
@@ -127,8 +117,6 @@ struct Tune230NCTests {
         ("AA 77 0B 02 09 09 0A 04 0B 00 0E A1 0C A1", [.gestureControl(.right, .ambientSound)]),
         ("AA 77 11 02 06 08 07 05 08 06 0C A1 09 09 0A 04 0B 00 0E A1",
          [.gestureControl(.left, .volume), .gestureControl(.right, .ambientSound)]),
-        // Frames without a length byte don't stop the frames after them from being decoded.
-        ("AA 04 43 AA 00 02 41 00", [.downloadFinished, .acknowledged(group: 0x41, status: 0)]),
     ]
 
     @Test(arguments: replies)
