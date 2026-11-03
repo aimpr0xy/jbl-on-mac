@@ -176,7 +176,7 @@ final class HeadphoneController: NSObject {
 
     /// Called when the headphones confirm or reject the oldest outstanding write. The UI is
     /// updated optimistically, so a failed write must be undone: ask the headphones for the real
-    /// state, or forget the value when there's no query for it.
+    /// state.
     func writeCompleted(error: Error?) {
         guard !pendingWrites.isEmpty else { return }
         let command = pendingWrites.removeFirst()
@@ -184,8 +184,6 @@ final class HeadphoneController: NSObject {
         log.error("write failed for \(String(describing: command), privacy: .public): \(error.localizedDescription, privacy: .public)")
         if let query = command.refreshQuery {
             send(query)
-        } else if case .setEqualizer = command {
-            state.equalizer = nil
         }
     }
 

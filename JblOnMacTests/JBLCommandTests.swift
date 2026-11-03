@@ -44,6 +44,7 @@ struct JBLCommandTests {
         Case(command: .querySmartAudio, hex: "AA 80 01 01"),
         Case(command: .querySpatialAudio, hex: "AA 06 03 00 01 00 0C"),
         Case(command: .queryBalance, hex: "AA A8 01 01"),
+        Case(command: .queryEqualizer, hex: "AA A2 02 01 FF"),
         Case(command: .queryVolumeLimiter, hex: "AA 06 03 00 01 00 20"),
         Case(command: .queryCallFeature(id: 0x14), hex: "AA 06 03 00 01 00 14"),
     ]
@@ -85,7 +86,6 @@ struct JBLCommandTests {
     @Test func writesRefreshWithTheMatchingQuery() {
         #expect(JBLCommand.setBalance(3).refreshQuery == .queryBalance)
         #expect(JBLCommand.setVoiceAware(enabled: true, level: .mid).refreshQuery == .queryCallFeature(id: 0x0D))
-        // The equalizer has no query, so a failed write forgets the value instead.
-        #expect(JBLCommand.setEqualizer(.bass).refreshQuery == nil)
+        #expect(JBLCommand.setEqualizer(.bass).refreshQuery == .queryEqualizer)
     }
 }
