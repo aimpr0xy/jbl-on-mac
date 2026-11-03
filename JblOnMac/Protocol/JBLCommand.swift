@@ -22,6 +22,8 @@ import Foundation
 ///   equalizer write          AA A2 74 00 03 <preset> <headroom f32> 30 00*8 | 10 x (0A 01 <gain f32> <Hz f32>) | 0A
 ///                            (floats little-endian; the app writes to handle 0x002D, same as the others)
 ///   equalizer query          AA A2 02 01 FF   (replies with the same frame as a write echo: AA A2 74 00 04 <preset> ...)
+///   touch controls write     AA 77 09 00 <slot> <action> x 4   (left slots 06 07 08 0C, right 09 0A 0B 0E; see GestureControl)
+///   touch controls query     AA 77 02 01 FF   (both earbuds; FD left only, FE right only)
 /// Replies are decoded by `JBLReply`.
 enum JBLCommand: Equatable {
     // Writes
@@ -38,6 +40,7 @@ enum JBLCommand: Equatable {
     case setCallVoice(CallVoiceSetting)
     case setVoiceAware(enabled: Bool, level: VoiceAwareLevel)
     case setEqualizer(EqualizerPreset)
+    case setGestureControl(EarbudSide, GestureControl)
 
     // Queries
     case queryListeningMode
@@ -50,13 +53,14 @@ enum JBLCommand: Equatable {
     case queryEqualizer
     case queryVolumeLimiter
     case queryCallFeature(id: UInt8)
+    case queryGestureControls
 
     /// Everything asked for once notifications are on.
     static let initialQueries: [JBLCommand] = [
         .queryListeningMode, .queryLevels, .queryEarbudBattery, .queryCaseBattery,
         .querySmartAudio, .querySpatialAudio, .queryBalance, .queryEqualizer,
         .queryVolumeLimiter, .queryCallFeature(id: 0x23), .queryCallFeature(id: 0x14),
-        .queryCallFeature(id: 0x16), .queryCallFeature(id: 0x0D),
+        .queryCallFeature(id: 0x16), .queryCallFeature(id: 0x0D), .queryGestureControls,
     ]
 
     var bytes: [UInt8] {
@@ -92,6 +96,9 @@ enum JBLCommand: Equatable {
                 packet += [0x0A, 0x01] + Self.littleEndian(gain) + Self.littleEndian(frequency)
             }
             return packet + [0x0A]
+        case .setGestureControl(let side, let control):
+            // Slot and action alternate: `<slot> <action> <slot> <action> ...`.
+            return [0xAA, 0x77, 0x09, 0x00] + zip(side.slots, control.actions(for: side)).flatMap { [$0, $1] }
 
         case .queryListeningMode: return [0xAA, 0x91, 0x01, 0x11]
         case .queryLevels: return [0xAA, 0x91, 0x01, 0x21]
@@ -103,6 +110,7 @@ enum JBLCommand: Equatable {
         case .queryEqualizer: return [0xAA, 0xA2, 0x02, 0x01, 0xFF]
         case .queryVolumeLimiter: return Self.featureQuery(id: 0x20)
         case .queryCallFeature(let id): return Self.featureQuery(id: id)
+        case .queryGestureControls: return [0xAA, 0x77, 0x02, 0x01, 0xFF]
         }
     }
 
@@ -121,9 +129,10 @@ enum JBLCommand: Equatable {
         case .setCallVoice: return .queryCallFeature(id: 0x16)
         case .setVoiceAware: return .queryCallFeature(id: 0x0D)
         case .setEqualizer: return .queryEqualizer
+        case .setGestureControl: return .queryGestureControls
         case .queryListeningMode, .queryLevels, .queryEarbudBattery,
              .queryCaseBattery, .querySmartAudio, .querySpatialAudio, .queryBalance,
-             .queryEqualizer, .queryVolumeLimiter, .queryCallFeature:
+             .queryEqualizer, .queryVolumeLimiter, .queryCallFeature, .queryGestureControls:
             return nil
         }
     }

@@ -34,6 +34,14 @@ struct JBLCommandTests {
         Case(command: .setCallVoice(.bright), hex: "AA 06 07 00 00 00 16 03 FF FF 02"),
         Case(command: .setVoiceAware(enabled: false, level: .low), hex: "AA 06 06 00 00 00 0D 02 00 01"),
         Case(command: .setVoiceAware(enabled: true, level: .high), hex: "AA 06 06 00 00 00 0D 02 01 03"),
+        Case(command: .setGestureControl(.left, .playback), hex: "AA 77 09 00 06 01 07 02 08 00 0C A1"),
+        Case(command: .setGestureControl(.left, .volume), hex: "AA 77 09 00 06 08 07 05 08 06 0C A1"),
+        Case(command: .setGestureControl(.left, .none), hex: "AA 77 09 00 06 00 07 00 08 00 0C 00"),
+        Case(command: .setGestureControl(.left, .ambientSound), hex: "AA 77 09 00 06 09 07 04 08 00 0C A1"),
+        Case(command: .setGestureControl(.right, .ambientSound), hex: "AA 77 09 00 09 0B 0A 04 0B 00 0E A1"),
+        Case(command: .setGestureControl(.right, .playback), hex: "AA 77 09 00 09 01 0A 02 0B 00 0E A1"),
+        Case(command: .setGestureControl(.right, .volume), hex: "AA 77 09 00 09 08 0A 05 0B 06 0E A1"),
+        Case(command: .setGestureControl(.right, .none), hex: "AA 77 09 00 09 00 0A 00 0B 00 0E 00"),
     ]
 
     static let queries: [Case] = [
@@ -47,6 +55,7 @@ struct JBLCommandTests {
         Case(command: .queryEqualizer, hex: "AA A2 02 01 FF"),
         Case(command: .queryVolumeLimiter, hex: "AA 06 03 00 01 00 20"),
         Case(command: .queryCallFeature(id: 0x14), hex: "AA 06 03 00 01 00 14"),
+        Case(command: .queryGestureControls, hex: "AA 77 02 01 FF"),
     ]
 
     @Test(arguments: writes)

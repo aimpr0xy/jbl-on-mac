@@ -34,6 +34,9 @@ struct ContentView: View {
                 case .equalizer:
                     EqualizerScreen(headphones: headphones, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .gestures(let side):
+                    GesturesScreen(headphones: headphones, side: side, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 case .calls:
                     CallFeaturesScreen(headphones: headphones, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))

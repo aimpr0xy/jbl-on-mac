@@ -14,6 +14,7 @@ JBL doesn't make a Mac version of its companion app. This app talks to the headp
 - Smart Audio & Video modes
 - Equalizer presets: Off, Studio, Bass, Club, Extreme Bass, Vocal, Jazz
 - Left/right balance
+- Left and right touch controls: Ambient Sound, Volume, Playback, or None
 - Safe Sound (volume limiter)
 - Call features: sound level optimizer, call sound, call voice, Voice Aware
 

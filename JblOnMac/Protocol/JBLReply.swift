@@ -21,6 +21,8 @@ enum JBLReply: Equatable {
     case voiceAware(enabled: Bool, level: VoiceAwareLevel?)
     case battery(BatteryPart, percent: Int)
     case equalizer(EqualizerPreset)
+    /// Nil when the earbud reports a combination of actions we don't know.
+    case gestureControl(EarbudSide, GestureControl?)
 
     /// Decodes a notification, which may carry several frames back to back; unknown or malformed
     /// frames give nothing. Decoding stops at the first frame that is cut short or doesn't start
@@ -50,6 +52,7 @@ enum JBLReply: Equatable {
     private static func decode(frame bytes: [UInt8]) -> [JBLReply] {
         switch bytes[1] {
         case 0xA2: return equalizer(bytes)
+        case 0x77: return gestureControls(bytes)
         case 0xA8: return balance(bytes)
         case 0x80: return smartAudio(bytes)
         case 0x91: return bytes[3] == 0x12 ? levels(bytes) + listeningMode(bytes) : levels(bytes)
@@ -71,6 +74,23 @@ enum JBLReply: Equatable {
         guard bytes.count >= 6, bytes[0] == 0xAA, bytes[1] == 0xA2, bytes[4] == 0x04,
               let preset = EqualizerPreset(rawValue: bytes[5]) else { return [] }
         return [.equalizer(preset)]
+    }
+
+    /// Touch control replies are `AA 77 <len> 02` followed by `<slot> <action>` pairs, four per
+    /// earbud; a reply covers one or both earbuds. Echoes of a write (`00` instead of `02`) are ignored.
+    private static func gestureControls(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 4, bytes[0] == 0xAA, bytes[1] == 0x77, bytes[3] == 0x02 else { return [] }
+        var actions: [UInt8: UInt8] = [:]
+        var index = 4
+        while index + 1 < bytes.count {
+            actions[bytes[index]] = bytes[index + 1]
+            index += 2
+        }
+        return EarbudSide.allCases.compactMap { side in
+            let values = side.slots.compactMap { actions[$0] }
+            guard values.count == side.slots.count else { return nil }
+            return .gestureControl(side, GestureControl(actions: values, side: side))
+        }
     }
 
     /// Call feature replies are `AA 06 <len> 00 02 00 <id> ...`.

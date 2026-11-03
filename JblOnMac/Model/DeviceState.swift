@@ -19,9 +19,16 @@ struct DeviceState {
     /// Noise canceling and ambient aware strength (1...7).
     var noiseCancelingLevel: Int?
     var ambientAwareLevel: Int?
+    /// What the touch controls of each earbud do.
+    var leftGestureControl: GestureControl?
+    var rightGestureControl: GestureControl?
     var leftBattery: Int?
     var rightBattery: Int?
     var caseBattery: Int?
+
+    func gestureControl(for side: EarbudSide) -> GestureControl? {
+        side == .left ? leftGestureControl : rightGestureControl
+    }
 
     /// The strength of a mode (1...7), or nil if it has none or it isn't known yet.
     func level(for mode: ListeningMode) -> Int? {
