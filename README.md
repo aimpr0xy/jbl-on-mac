@@ -4,31 +4,30 @@ A macOS menu bar app for controlling JBL headphones without the JBL Headphones a
 
 JBL doesn't make a Mac version of its companion app. This app talks to the headphones over the same Bluetooth Low Energy protocol the iOS app uses. We worked the protocol out by capturing the iOS app's Bluetooth traffic with Apple's PacketLogger.
 
-## Features
-
-- Pick a JBL device from the menu bar, then pair and connect without going to System Settings
-- Ambient sound control: Noise Canceling, Ambient Aware, Talk Thru, or Off
-- Noise Canceling and Ambient Aware strength (levels 1 to 7)
-- Battery levels for the left earbud, the right earbud, and the charging case
-- Spatial audio modes
-- Smart Audio & Video modes
-- Equalizer presets: Off, Studio, Bass, Club, Extreme Bass, Vocal, Jazz
-- Left/right balance
-- Left and right touch controls: Ambient Sound, Volume, Playback, or None
-- Safe Sound (volume limiter)
-- Call features: sound level optimizer, call sound, call voice, Voice Aware
-
 ## Compatibility
 
 Only one device has been tested so far. JBL uses the same protocol across many products, so other models might work fully, partly, or not at all.
 
 Legend: ✅ works · ⚠️ partly works (see notes) · ❌ doesn't work · ❔ not tested
 
-| Device | Ambient sound | Levels | Battery | Spatial audio | Smart Audio & Video | Equalizer | Balance | Safe Sound | Call features | Tested by | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| JBL Tune Beam 2 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | @aimpr0xy | Reference device; the protocol was captured from this model |
+| Feature | JBL Tune Beam 2 |
+| --- | --- |
+| Pairing and connection: pick the device from the menu bar, then pair and connect without going to System Settings | ✅ |
+| Battery: left earbud, right earbud, and charging case | ✅ |
+| Ambient Sound Control: Noise Canceling, Ambient Aware, Talk Thru, or Off | ✅ |
+| Noise Canceling and Ambient Aware levels: strength from 1 to 7 | ✅ |
+| Spatial Audio: Off, Fixed, or Head Tracking | ✅ |
+| Smart Audio & Video: Off, Audio Mode, or Video Mode | ✅ |
+| Equalizer: Off, Studio, Bass, Club, Extreme Bass, Vocal, or Jazz | ✅ |
+| Balance: left/right balance | ✅ |
+| Touch Controls: left and right earbud set to Ambient Sound Control, Volume Control, Playback Control, or None | ✅ |
+| Safe Sound: volume limiter on or off | ✅ |
+| Sound Level Optimizer: on or off | ✅ |
+| Call Sound: Natural, Increased Treble, or Increased Bass | ✅ |
+| Call Voice: Natural, Powerful, or Bright | ✅ |
+| Voice Aware: on or off, with a Low, Mid, or High level | ✅ |
 
-Have a different JBL device? Please test it and add a row to this table. [CONTRIBUTING.md](CONTRIBUTING.md#reporting-device-compatibility) explains how, and also covers capturing packets for features that don't work yet.
+Have a different JBL device? Please test it and add a column for it to this table. [CONTRIBUTING.md](CONTRIBUTING.md#reporting-device-compatibility) explains how, and also covers capturing packets for features that don't work yet.
 
 ## Requirements
 
