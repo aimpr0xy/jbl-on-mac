@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Clicking a device connects it (pairing first if needed) and, once connected, opens its
-/// controls. Progress is shown in the row's description instead of a separate screen.
+/// controls. Progress is shown as a spinner in the icon instead of a separate screen: gray while
+/// macOS connects the device, blue while its settings connect.
 struct DeviceRow: View {
     let headphones: HeadphoneController
     let device: JBLDevice
@@ -9,19 +10,23 @@ struct DeviceRow: View {
     var body: some View {
         let isPairing = headphones.connectingAddress == device.address
         let isOpening = headphones.selectedDevice?.address == device.address
-        let isBusy = isPairing || isOpening
+        // Products we have no protocol for can't be controlled, so they can't be opened.
+        let isSupported = JBLModel(name: device.name) != .unknown
+        // Not while the settings link can't be made at all; the subtitle explains that.
+        let isBusy = (isPairing || isOpening)
+            && headphones.status != .bluetoothOff && headphones.status != .unauthorized
         SelectableRow(
-            systemImage: "headphones",
+            systemImage: isSupported ? "headphones" : "slash.circle",
             title: LocalizedStringResource(stringLiteral: device.name),
-            subtitle: subtitle(isPairing: isPairing, isOpening: isOpening),
-            isActive: device.isConnected
+            subtitle: subtitle(isOpening: isOpening),
+            isActive: device.isConnected && isSupported,
+            isBusy: isBusy
         ) {
-            if isBusy, headphones.status != .bluetoothOff, headphones.status != .unauthorized {
-                ProgressView().controlSize(.small)
-            } else if device.isConnected {
+            if device.isConnected, isSupported, !isBusy {
                 DisclosureChevron()
             }
         } action: {
+            guard isSupported else { return }
             if isOpening {
                 // Tapping a device that's still connecting cancels it.
                 headphones.deselect()
@@ -31,19 +36,19 @@ struct DeviceRow: View {
                 headphones.connect(device)
             }
         }
-        .disabled((headphones.connectingAddress != nil && !isPairing)
+        .disabled(!isSupported
+                  || (headphones.connectingAddress != nil && !isPairing)
                   || (headphones.selectedDevice != nil && !isOpening))
+        .help(isSupported ? "" : String(localized: "This product isn't supported yet"))
     }
 
-    private func subtitle(isPairing: Bool, isOpening: Bool) -> String? {
-        if isPairing { return "Connecting…" }
-        if isOpening {
-            switch headphones.status {
-            case .bluetoothOff: return "Bluetooth is off"
-            case .unauthorized: return "Allow Bluetooth in System Settings"
-            default: return "Connecting…"
-            }
+    /// Only problems are spelled out; connection state is shown by the icon.
+    private func subtitle(isOpening: Bool) -> String? {
+        guard isOpening else { return nil }
+        switch headphones.status {
+        case .bluetoothOff: return "Bluetooth is off"
+        case .unauthorized: return "Allow Bluetooth in System Settings"
+        default: return nil
         }
-        return device.isConnected ? nil : "Not Connected"
     }
 }
