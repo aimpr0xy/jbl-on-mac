@@ -171,7 +171,9 @@ final class HeadphoneController: NSObject {
     func send(_ command: JBLCommand) {
         guard let peripheral, let writeCharacteristic else { return }
         pendingWrites.append(command)
-        peripheral.writeValue(Data(command.bytes), for: writeCharacteristic, type: .withResponse)
+        let bytes = command.bytes
+        log.debug("sent \(String(describing: command), privacy: .public): \(bytes.map { String(format: "%02X", $0) }.joined(separator: " "), privacy: .public)")
+        peripheral.writeValue(Data(bytes), for: writeCharacteristic, type: .withResponse)
     }
 
     /// Called when the headphones confirm or reject the oldest outstanding write. The UI is
@@ -242,6 +244,13 @@ final class HeadphoneController: NSObject {
         guard canSend else { return }
         send(.setEqualizer(preset))
         state.equalizer = preset
+    }
+
+    /// Sets what the touch controls of one earbud do.
+    func select(_ control: GestureControl, for side: EarbudSide) {
+        guard canSend else { return }
+        send(.setGestureControl(side, control))
+        if side == .left { state.leftGestureControl = control } else { state.rightGestureControl = control }
     }
 
     /// Turns the max volume limiter on or off.

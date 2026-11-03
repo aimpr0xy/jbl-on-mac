@@ -42,6 +42,8 @@ extension HeadphoneController: CBPeripheralDelegate {
         case .balance(let value): state.balance = value
         case .volumeLimiter(let enabled): state.volumeLimiterEnabled = enabled
         case .equalizer(let preset): state.equalizer = preset
+        case .gestureControl(let side, let control):
+            if side == .left { state.leftGestureControl = control } else { state.rightGestureControl = control }
         case .soundLevelOptimizer(let enabled): state.soundLevelOptimizerEnabled = enabled
         case .callSound(let setting): state.callSoundSetting = setting
         case .callVoice(let setting): state.callVoiceSetting = setting

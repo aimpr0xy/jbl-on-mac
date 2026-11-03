@@ -97,6 +97,23 @@ struct DeviceControlsView: View {
                 }
             }
 
+            // One row per earbud, shown once the headphones report its touch controls, so models
+            // without the feature don't get a dead row.
+            ForEach(EarbudSide.allCases) { side in
+                if let control = headphones.state.gestureControl(for: side) {
+                    SelectableRow(
+                        systemImage: "hand.tap",
+                        title: side.touchControlsTitle,
+                        subtitle: String(localized: control.title),
+                        isActive: control != .none
+                    ) {
+                        DisclosureChevron()
+                    } action: {
+                        screen = .gestures(side)
+                    }
+                }
+            }
+
             SelectableRow(
                 systemImage: "phone",
                 title: "Calls",
