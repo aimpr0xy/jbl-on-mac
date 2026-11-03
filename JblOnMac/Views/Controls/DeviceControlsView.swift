@@ -60,16 +60,19 @@ struct DeviceControlsView: View {
 
             SectionTitle("Sound")
                 .padding(.top, 8)
-            SelectableRow(
-                systemImage: "arrow.left.and.right",
-                title: "Balance",
-                subtitle: headphones.state.balance.map(balanceDescription),
-                // Blue while the balance is off centre.
-                isActive: headphones.state.balance.map { $0 != 0 } ?? false
-            ) {
-                DisclosureChevron()
-            } action: {
-                screen = .balance
+            // Only shown once the headphones report a balance.
+            if let balance = headphones.state.balance {
+                SelectableRow(
+                    systemImage: "arrow.left.and.right",
+                    title: "Balance",
+                    subtitle: balanceDescription(balance),
+                    // Blue while the balance is off centre.
+                    isActive: balance != 0
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .balance
+                }
             }
 
             SelectableRow(
@@ -114,16 +117,45 @@ struct DeviceControlsView: View {
                 }
             }
 
-            SelectableRow(
-                systemImage: "phone",
-                title: "Calls",
-                isActive: false
-            ) {
-                DisclosureChevron()
-            } action: {
-                screen = .calls
+            // Only shown once the headphones report one of the call features.
+            if hasCallFeatures {
+                SelectableRow(
+                    systemImage: "phone",
+                    title: "Calls",
+                    isActive: false
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .calls
+                }
             }
+
+            firmwareFooter
         }
+    }
+
+    /// Earbud (and, if reported, charging case) firmware, like the JBL app shows.
+    @ViewBuilder
+    private var firmwareFooter: some View {
+        if let firmware = headphones.state.info.firmware {
+            Group {
+                if let caseFirmware = headphones.state.info.caseFirmware {
+                    Text("Firmware \(firmware) · Case \(caseFirmware)")
+                } else {
+                    Text("Firmware \(firmware)")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+        }
+    }
+
+    private var hasCallFeatures: Bool {
+        let state = headphones.state
+        return state.soundLevelOptimizerEnabled != nil || state.callSoundSetting != nil
+            || state.callVoiceSetting != nil || state.voiceAwareEnabled != nil
     }
 
     /// Describes a balance of -16 (left) ... 16 (right) in words.

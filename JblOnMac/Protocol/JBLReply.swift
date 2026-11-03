@@ -23,6 +23,16 @@ enum JBLReply: Equatable {
     case equalizer(EqualizerPreset)
     /// Nil when the earbud reports a combination of actions we don't know.
     case gestureControl(EarbudSide, GestureControl?)
+    /// Tune 230NC: `AA 00 02 <command group> <status>`, sent for each packet of an upload and for
+    /// some writes.
+    case acknowledged(group: UInt8, status: UInt8)
+    /// Tune 230NC: `AA 43 <length> <chunks>` starts a chunked reply. The chunks follow as raw
+    /// `<index> <bytes…>` notifications and `AA 04 43` ends it; see `equalizerGains(fromDownload:)`.
+    case downloadStarted(length: Int, chunks: Int)
+    case downloadFinished
+    /// Tune 230NC: earbud and charging case firmware versions, e.g. "3.7.0".
+    case firmware(String)
+    case caseFirmware(String)
 
     /// Decodes a notification, which may carry several frames back to back; unknown or malformed
     /// frames give nothing. Decoding stops at the first frame that is cut short or doesn't start
@@ -40,9 +50,14 @@ enum JBLReply: Equatable {
     /// Frames are `AA <group> <len> <payload…>`. The length byte counts everything after itself in
     /// groups `91`, `80` and `A8`, but is one short in groups `06` and `A2` (as seen in every
     /// documented capture, e.g. `AA 06 06 00 00 00 0C 02 01 03` is 10 bytes), so those frames
-    /// are `len + 4` bytes long and the others `len + 3`. Nil when there is no complete frame.
+    /// are `len + 4` bytes long and the others `len + 3`. The Tune 230NC's download frames have no
+    /// length byte: `AA 43` carries the transfer's length instead and `AA 04 43` is 3 bytes.
+    /// Nil when there is no complete frame.
     private static func frameLength(in bytes: [UInt8], at start: Int) -> Int? {
-        guard bytes.count - start >= 4, bytes[start] == 0xAA else { return nil }
+        guard bytes.count - start >= 3, bytes[start] == 0xAA else { return nil }
+        if bytes[start + 1] == 0x04 { return 3 }
+        guard bytes.count - start >= 4 else { return nil }
+        if bytes[start + 1] == 0x43 { return 4 }
         let overhead = (bytes[start + 1] == 0x06 || bytes[start + 1] == 0xA2) ? 4 : 3
         let length = Int(bytes[start + 2]) + overhead
         return start + length <= bytes.count ? length : nil
@@ -54,6 +69,14 @@ enum JBLReply: Equatable {
         case 0xA2: return equalizer(bytes)
         case 0x77: return gestureControls(bytes)
         case 0xA8: return balance(bytes)
+        case 0x25: return batteryLevels(bytes)
+        case 0x83: return tune230NCSmartAudio(bytes)
+        case 0x98: return tune230NCVoiceAware(bytes)
+        case 0x12: return status(bytes)
+        case 0x26: return caseFirmware(bytes)
+        case 0x00 where bytes.count >= 5: return [.acknowledged(group: bytes[3], status: bytes[4])]
+        case 0x43: return [.downloadStarted(length: Int(bytes[2]), chunks: Int(bytes[3]))]
+        case 0x04 where bytes[2] == 0x43: return [.downloadFinished]
         case 0x80: return smartAudio(bytes)
         case 0x91: return bytes[3] == 0x12 ? levels(bytes) + listeningMode(bytes) : levels(bytes)
         case 0x06:
@@ -158,6 +181,64 @@ enum JBLReply: Equatable {
         guard bytes.count >= 12, bytes[0] == 0xAA, bytes[1] == 0x80, bytes[2] == 0x09,
               bytes[3] == 0x02, let mode = SmartAudioMode(payload: Array(bytes[4..<12])) else { return [] }
         return [.smartAudio(mode)]
+    }
+
+    /// Tune 230NC battery replies (and later unsolicited updates) are
+    /// `AA 25 0D 01 00 00 <left> <right> 00 <case> <mV LE16> <mV LE16> 54 00`. The case byte read
+    /// 2 while the JBL app showed the case at 2%; what the `00` before it and the trailing `54`
+    /// mean is unknown.
+    private static func batteryLevels(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 8, bytes[3] == 0x01 else { return [] }
+        var parts: [(BatteryPart, UInt8)] = [(.left, bytes[6]), (.right, bytes[7])]
+        if bytes.count >= 10 { parts.append((.chargingCase, bytes[9])) }
+        return parts.compactMap { part, percent in
+            percent <= 100 ? .battery(part, percent: Int(percent)) : nil
+        }
+    }
+
+    /// Tune 230NC smart audio and video replies are `AA 83 08` followed by the 8 payload bytes.
+    private static func tune230NCSmartAudio(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 11, bytes[2] == 0x08,
+              let mode = SmartAudioMode(payload: Array(bytes[3..<11])) else { return [] }
+        return [.smartAudio(mode)]
+    }
+
+    /// Tune 230NC voice aware replies are `AA 98 02 02 <00 off | 01 low | 02 mid | 03 high>`;
+    /// echoes of a write (`00` instead of `02`) are ignored.
+    private static func tune230NCVoiceAware(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 5, bytes[3] == 0x02, bytes[4] <= 3 else { return [] }
+        return [.voiceAware(enabled: bytes[4] != 0, level: VoiceAwareLevel(rawValue: bytes[4]))]
+    }
+
+    /// Tune 230NC status replies are `AA 12 25 <name, 16 bytes> <10 bytes> <firmware major minor
+    /// patch> …`, e.g. `03 07 00` for 3.7.0.
+    private static func status(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 32, bytes[2] == 0x25 else { return [] }
+        return [.firmware(version(bytes[29..<32]))]
+    }
+
+    /// Tune 230NC case firmware replies are `AA 26 04 01 <major> <minor> <patch>`.
+    private static func caseFirmware(_ bytes: [UInt8]) -> [JBLReply] {
+        guard bytes.count >= 7, bytes[2] == 0x04 else { return [] }
+        return [.caseFirmware(version(bytes[4..<7]))]
+    }
+
+    private static func version(_ parts: ArraySlice<UInt8>) -> String {
+        parts.map(String.init).joined(separator: ".")
+    }
+
+    /// Tune 230NC: the ten band gains of an equalizer download, given the chunks' bytes without
+    /// their index. The payload is `04 01 00 <f32> <f32> <band count u32>` followed by bands of
+    /// `01 00 00 00 <gain f32> <Hz f32> <Q f32>`. Nil if it isn't a ten-band curve.
+    static func equalizerGains(fromDownload payload: [UInt8]) -> [Float]? {
+        let header = 15, band = 16
+        guard payload.count >= header, payload[0] == 0x04, payload[11] == 10,
+              payload.count >= header + 10 * band else { return nil }
+        return (0..<10).map { index in
+            let start = header + index * band + 4
+            let bits = payload[start..<start + 4].reversed().reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+            return Float(bitPattern: bits)
+        }
     }
 
     /// Battery replies (and later unsolicited updates) are `AA 06 <len> 00 02 00` followed by

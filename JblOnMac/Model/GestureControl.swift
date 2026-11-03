@@ -20,6 +20,8 @@ enum EarbudSide: CaseIterable, Identifiable {
         }
     }
 
+    var opposite: EarbudSide { self == .left ? .right : .left }
+
     /// The four gesture slots the headphones report and accept for this earbud, as seen in the
     /// JBL app's capture.
     var slots: [UInt8] {
@@ -70,9 +72,11 @@ enum GestureControl: CaseIterable, Identifiable {
         }
     }
 
-    /// Nil when the actions aren't one of the known combinations.
+    /// Nil when the actions aren't one of the known combinations. The Tune 230NC uses the left
+    /// earbud's actions on both sides, so those are accepted for the right one as well.
     init?(actions: [UInt8], side: EarbudSide) {
-        guard let match = Self.allCases.first(where: { $0.actions(for: side) == actions }) else { return nil }
+        guard let match = Self.allCases.first(where: { $0.actions(for: side) == actions })
+                ?? Self.allCases.first(where: { $0.actions(for: .left) == actions }) else { return nil }
         self = match
     }
 }

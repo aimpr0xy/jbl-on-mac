@@ -42,6 +42,11 @@ final class HeadphoneController: NSObject {
     var connectingAddress: String?
     var connectionError: LocalizedStringResource?
 
+    /// The protocol dialect of the selected device.
+    var model: JBLModel {
+        selectedDevice.map { JBLModel(name: $0.name) } ?? .tuneBeam2
+    }
+
     let writeUUID = JBLUUID.write
     let notifyUUID = JBLUUID.notify
 
@@ -51,6 +56,13 @@ final class HeadphoneController: NSObject {
     /// Commands written but not yet acknowledged, oldest first; write-with-response results
     /// arrive in order, and the callback doesn't say which command it is for.
     @ObservationIgnored var pendingWrites: [JBLCommand] = []
+    /// Tune 230NC: packets of the equalizer upload still to send, each after the previous one is
+    /// acked. Nil while no upload is running.
+    @ObservationIgnored var uploadRemaining: [JBLCommand]?
+    /// Tune 230NC: a preset picked while an upload was running, sent once it finishes.
+    @ObservationIgnored var queuedEqualizer: EqualizerPreset?
+    /// Tune 230NC: bytes of the chunked reply being received. Nil while none is.
+    @ObservationIgnored var downloadBuffer: [UInt8]?
 
     @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
     @ObservationIgnored var isDiscovering = false
@@ -213,6 +225,11 @@ final class HeadphoneController: NSObject {
         let command = pendingWrites.removeFirst()
         guard let error else { return }
         log("write failed for \(String(describing: command)): \(error.localizedDescription)", level: .error)
+        // The rest of an upload is useless once one of its packets is lost.
+        if command.refreshQuery == .queryEqualizerCurve {
+            uploadRemaining = nil
+            queuedEqualizer = nil
+        }
         if let query = command.refreshQuery {
             send(query)
         }
@@ -255,7 +272,7 @@ final class HeadphoneController: NSObject {
     /// Sends the smart audio and video command for the given mode.
     func select(_ smart: SmartAudioMode) {
         guard canSend else { return }
-        send(.setSmartAudio(smart))
+        send(model == .tune230NC ? .setTune230NCSmartAudio(smart) : .setSmartAudio(smart))
         state.smartMode = smart
     }
 
@@ -271,14 +288,45 @@ final class HeadphoneController: NSObject {
     /// Sends the equalizer command for the given preset.
     func select(_ preset: EqualizerPreset) {
         guard canSend else { return }
-        send(.setEqualizer(preset))
         state.equalizer = preset
+        if model == .tune230NC {
+            upload(preset)
+        } else {
+            send(.setEqualizer(preset))
+        }
+    }
+
+    /// Tune 230NC: starts the chunked write of a preset, or queues it behind the running one so
+    /// two uploads don't interleave.
+    private func upload(_ preset: EqualizerPreset) {
+        guard uploadRemaining == nil else {
+            queuedEqualizer = preset
+            return
+        }
+        var packets = JBLCommand.equalizerUpload(preset)
+        send(packets.removeFirst())
+        uploadRemaining = packets
+    }
+
+    /// Tune 230NC: sends the next upload packet once the headphones acked the previous one.
+    func uploadPacketAcknowledged() {
+        guard var remaining = uploadRemaining else { return }
+        guard !remaining.isEmpty else {
+            uploadRemaining = nil
+            if let next = queuedEqualizer {
+                queuedEqualizer = nil
+                upload(next)
+            }
+            return
+        }
+        send(remaining.removeFirst())
+        uploadRemaining = remaining
     }
 
     /// Sets what the touch controls of one earbud do.
     func select(_ control: GestureControl, for side: EarbudSide) {
         guard canSend else { return }
-        send(.setGestureControl(side, control))
+        send(model.gestureCommand(side, control, other: state.gestureControl(for: side.opposite)))
         if side == .left { state.leftGestureControl = control } else { state.rightGestureControl = control }
     }
 
@@ -324,7 +372,11 @@ final class HeadphoneController: NSObject {
         guard canSend else { return }
         state.voiceAwareEnabled = enabled
         state.voiceAwareLevel = level
-        send(.setVoiceAware(enabled: enabled, level: level))
+        if model == .tune230NC {
+            send(.setTune230NCVoiceAware(enabled ? level : nil))
+        } else {
+            send(.setVoiceAware(enabled: enabled, level: level))
+        }
     }
 
     func startScanning() {
@@ -339,7 +391,9 @@ final class HeadphoneController: NSObject {
         }
         // Scanning doesn't deliver any results on some Macs, but connecting to a peripheral
         // by its remembered identifier does work, so keep retrying that.
-        if let id = rememberedIdentifier,
+        // The Tune 230NC's LE side changes its private address every few minutes and isn't bonded
+        // with the Mac, so a remembered identifier soon points at an address nobody answers on.
+        if model != .tune230NC, let id = rememberedIdentifier,
            let match = central.retrievePeripherals(withIdentifiers: [id]).first {
             log("connecting to remembered peripheral \(id.uuidString)")
             known[id] = match
@@ -396,6 +450,9 @@ final class HeadphoneController: NSObject {
             peripheral = nil
             writeCharacteristic = nil
             pendingWrites.removeAll()
+            uploadRemaining = nil
+            queuedEqualizer = nil
+            downloadBuffer = nil
         }
     }
 

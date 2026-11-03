@@ -65,4 +65,29 @@ enum EqualizerPreset: UInt8, CaseIterable, Identifiable {
         case .extremeBass: Float(bitPattern: 0x410758D1)
         }
     }
+
+    /// Gains the Tune 230NC's app sends for the preset; only Vocal matches the Tune Beam 2's.
+    /// Names were inferred from how close each captured curve is to a Tune Beam 2 preset. Its app
+    /// doesn't offer Extreme Bass, which keeps the Tune Beam 2 curve.
+    var tune230NCGains: [Float] {
+        switch self {
+        case .off: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        case .studio: [0, -2, -2, 0, 0, 0, 0, 0, 0, 0]
+        case .bass: [6, 3, 3, 2.5, 0.5, 0, 0, 0, 0, 0]
+        case .club: [4, 2, 1, 2.5, -1.5, -1.5, 0, 1, 2, 4]
+        case .vocal: [-1.5, -3, -3, 1, 3.5, 3.5, 3, 1.5, 0, -1.5]
+        case .jazz: [1, 0, 1, 0, 0, 0, -2, 2, 0, 3]
+        case .extremeBass: gains
+        }
+    }
+
+    /// Value the Tune 230NC's app sends ahead of the bands, as captured per preset.
+    var tune230NCHeadroom: Float {
+        switch self {
+        case .off, .studio, .vocal, .jazz: 0
+        case .bass: Float(bitPattern: 0x414F48E1)
+        case .club: Float(bitPattern: 0x412C0DC8)
+        case .extremeBass: headroom
+        }
+    }
 }
