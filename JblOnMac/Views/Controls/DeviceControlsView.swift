@@ -81,7 +81,8 @@ struct DeviceControlsView: View {
             SelectableRow(
                 systemImage: "slider.vertical.3",
                 title: "Equalizer",
-                isActive: false
+                // Blue while a preset is applied; gray when off or not yet reported.
+                isActive: headphones.state.equalizer.map { $0 != .off } ?? false
             ) {
                 DisclosureChevron()
             } action: {
