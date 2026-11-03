@@ -40,6 +40,15 @@ struct ContentView: View {
                 case .calls:
                     CallFeaturesScreen(headphones: headphones, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .callSound:
+                    CallSoundScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .callVoice:
+                    CallVoiceScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .voiceAware:
+                    VoiceAwareScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             } else {
                 DeviceListView(headphones: headphones)

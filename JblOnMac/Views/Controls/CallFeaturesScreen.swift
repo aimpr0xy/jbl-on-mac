@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Call features screen, reached from the Calls row. Each section only shows once the
-/// headphones report its state.
+/// Call features screen, reached from the Calls row. Each row only shows once the
+/// headphones report its state; the multi-option ones open their own screen.
 struct CallFeaturesScreen: View {
     let headphones: HeadphoneController
     @Binding var screen: Screen
@@ -26,62 +26,50 @@ struct CallFeaturesScreen: View {
                 }
             }
 
-            if headphones.state.callSoundSetting != nil {
-                SectionTitle("Sound Setting")
-                    .padding(.top, 8)
-                ForEach(CallSoundSetting.allCases) { option in
-                    SelectableRow(
-                        systemImage: option.systemImage,
-                        title: option.title,
-                        isActive: headphones.state.callSoundSetting == option
-                    ) {
-                        EmptyView()
-                    } action: {
-                        headphones.select(option)
-                    }
+            if let sound = headphones.state.callSoundSetting {
+                SelectableRow(
+                    systemImage: "waveform",
+                    title: "Sound Setting",
+                    subtitle: String(localized: sound.title),
+                    isActive: true
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .callSound
                 }
             }
 
-            if headphones.state.callVoiceSetting != nil {
-                SectionTitle("Voice Setting")
-                    .padding(.top, 8)
-                ForEach(CallVoiceSetting.allCases) { option in
-                    SelectableRow(
-                        systemImage: option.systemImage,
-                        title: option.title,
-                        isActive: headphones.state.callVoiceSetting == option
-                    ) {
-                        EmptyView()
-                    } action: {
-                        headphones.select(option)
-                    }
+            if let voice = headphones.state.callVoiceSetting {
+                SelectableRow(
+                    systemImage: "mic",
+                    title: "Voice Setting",
+                    subtitle: String(localized: voice.title),
+                    isActive: true
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .callVoice
                 }
             }
 
             if let voiceAware = headphones.state.voiceAwareEnabled {
-                SectionTitle("Voice Aware")
-                    .padding(.top, 8)
                 SelectableRow(
-                    systemImage: "slash.circle",
-                    title: "Off",
-                    isActive: !voiceAware
+                    systemImage: "person.wave.2",
+                    title: "Voice Aware",
+                    subtitle: voiceAwareDescription(enabled: voiceAware),
+                    isActive: voiceAware
                 ) {
-                    EmptyView()
+                    DisclosureChevron()
                 } action: {
-                    headphones.setVoiceAware(enabled: false)
-                }
-                ForEach(VoiceAwareLevel.allCases) { option in
-                    SelectableRow(
-                        systemImage: option.systemImage,
-                        title: option.title,
-                        isActive: voiceAware && headphones.state.voiceAwareLevel == option
-                    ) {
-                        EmptyView()
-                    } action: {
-                        headphones.select(option)
-                    }
+                    screen = .voiceAware
                 }
             }
         }
+    }
+
+    /// "Off", or the selected level's name.
+    private func voiceAwareDescription(enabled: Bool) -> String? {
+        guard enabled else { return String(localized: "Off") }
+        return headphones.state.voiceAwareLevel.map { String(localized: $0.title) }
     }
 }
