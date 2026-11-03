@@ -42,7 +42,7 @@ The README's [compatibility list](README.md#compatibility) only includes the JBL
 1. Build and run the app as described above, then connect your device from the menu bar.
 2. Try every feature. Change the setting in the app, and check that the headphones respond (and that the JBL app on your phone shows the same value, if you have it).
 3. Note the exact device name the app shows, plus the firmware version if the JBL app displays one.
-4. Open a pull request that adds a row to the README's compatibility table, or open an issue with:
+4. Open a pull request that adds a column for your device to the README's compatibility table, or open an issue with:
    - Device name and firmware version
    - The result for each feature: ✅ works, ⚠️ partly works, ❌ doesn't work, ❔ not tested
    - For anything that's ⚠️ or ❌, what happened, plus the app logs from `log stream` while you tried it
