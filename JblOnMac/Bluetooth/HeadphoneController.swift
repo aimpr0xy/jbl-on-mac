@@ -44,7 +44,7 @@ final class HeadphoneController: NSObject {
 
     /// The protocol dialect of the selected device.
     var model: JBLModel {
-        selectedDevice.map { JBLModel(name: $0.name) } ?? .tuneBeam2
+        selectedDevice.map { JBLModel(name: $0.name) } ?? .unknown
     }
 
     let writeUUID = JBLUUID.write
@@ -162,7 +162,7 @@ final class HeadphoneController: NSObject {
     /// Logs a message prefixed with the selected device and what it reported about itself, so
     /// every line in a shared log shows which model and firmware it came from.
     func log(_ message: String, level: OSLogType = .default) {
-        let device = selectedDevice.map { "device=\"\($0.name)\" \(state.info.logDescription ?? "info=unknown")" } ?? "device=none"
+        let device = selectedDevice.map { "device=\"\($0.name)\" model=\(String(describing: model)) \(state.info.logDescription ?? "info=unknown")" } ?? "device=none"
         logger.log(level: level, "[\(device, privacy: .public)] \(message, privacy: .public)")
     }
 
@@ -235,8 +235,8 @@ final class HeadphoneController: NSObject {
         }
     }
 
-    /// Whether the BLE link is ready for writes.
-    private var canSend: Bool { peripheral != nil && writeCharacteristic != nil }
+    /// Whether the BLE link is ready for writes, and the model is one we know how to write to.
+    private var canSend: Bool { peripheral != nil && writeCharacteristic != nil && model.allowsWrites }
 
     /// Sends the ambient sound command for the given mode.
     func select(_ mode: ListeningMode) {

@@ -130,7 +130,21 @@ struct DeviceControlsView: View {
                 }
             }
 
+            unsupportedNote
+
             firmwareFooter
+        }
+    }
+
+    /// Models we haven't captured traffic from are read-only; ask for a log so they can be added.
+    @ViewBuilder
+    private var unsupportedNote: some View {
+        if headphones.model == .unknown {
+            Text("This model isn't supported yet, so its settings can't be changed. Open an issue with a log on GitHub to get it added.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
         }
     }
 
