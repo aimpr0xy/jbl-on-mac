@@ -47,7 +47,7 @@ struct DeviceControlsView: View {
             // without the feature don't get a dead row.
             if let spatial = headphones.state.spatialMode {
                 SelectableRow(
-                    systemImage: "person.spatialaudio",
+                    systemImage: "person.spatialaudio.stereo.fill",
                     title: "Spatial Audio",
                     subtitle: String(localized: spatial.title),
                     isActive: spatial != .off
@@ -63,7 +63,9 @@ struct DeviceControlsView: View {
             SelectableRow(
                 systemImage: "arrow.left.and.right",
                 title: "Balance",
-                isActive: false
+                subtitle: headphones.state.balance.map(balanceDescription),
+                // Blue while the balance is off centre.
+                isActive: headphones.state.balance.map { $0 != 0 } ?? false
             ) {
                 DisclosureChevron()
             } action: {
@@ -73,6 +75,7 @@ struct DeviceControlsView: View {
             SelectableRow(
                 systemImage: "slider.vertical.3",
                 title: "Equalizer",
+                subtitle: headphones.state.equalizer.map { String(localized: $0.title) },
                 // Blue while a preset is applied; gray when off or not yet reported.
                 isActive: headphones.state.equalizer.map { $0 != .off } ?? false
             ) {
@@ -104,6 +107,12 @@ struct DeviceControlsView: View {
                 screen = .calls
             }
         }
+    }
+
+    /// Describes a balance of -16 (left) ... 16 (right) in words.
+    private func balanceDescription(_ value: Int) -> String {
+        if value == 0 { return String(localized: "Centered") }
+        return value < 0 ? String(localized: "Left \(-value)") : String(localized: "Right \(value)")
     }
 
     /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.
