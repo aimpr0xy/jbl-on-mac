@@ -30,7 +30,7 @@ final class HeadphoneController: NSObject {
     var state = DeviceState()
     /// Address of the device currently being paired / connected from the list.
     var connectingAddress: String?
-    var connectionError: String?
+    var connectionError: LocalizedStringResource?
 
     let writeUUID = JBLUUID.write
     let notifyUUID = JBLUUID.notify
@@ -376,10 +376,10 @@ final class HeadphoneController: NSObject {
     /// Stops retrying and goes back to the device list with an error, so the app doesn't keep
     /// the radio busy forever when the headphones are off or out of range.
     func giveUpConnecting() {
-        let name = selectedDevice?.name ?? "the headphones"
+        let name = selectedDevice?.name ?? String(localized: "the headphones")
         log.notice("giving up after \(self.failedAttempts) failed attempts")
         deselect(forgetLastDevice: false)
-        connectionError = "Couldn't reach \(name). Make sure it's turned on and nearby, then try again."
+        connectionError = LocalizedStringResource("Couldn't reach \(name). Make sure it's turned on and nearby, then try again.")
     }
 
     func disconnect() {
