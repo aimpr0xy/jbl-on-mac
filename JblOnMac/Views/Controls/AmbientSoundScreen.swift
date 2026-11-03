@@ -18,6 +18,7 @@ struct AmbientSoundScreen: View {
                 SelectableRow(
                     systemImage: option.systemImage,
                     title: option.title,
+                    subtitle: headphones.state.level(for: option).map { String(localized: "Level \($0)") },
                     isActive: headphones.state.mode == option
                 ) {
                     if option.hasLevel {
