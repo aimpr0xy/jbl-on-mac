@@ -9,7 +9,7 @@ struct LevelScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             BackHeader(title: mode.title) {
-                screen = .controls
+                screen = .ambientSound
             } trailing: {
                 EmptyView()
             }

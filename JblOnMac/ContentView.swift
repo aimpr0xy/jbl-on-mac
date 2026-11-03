@@ -16,6 +16,15 @@ struct ContentView: View {
                 case .controls:
                     DeviceControlsView(headphones: headphones, device: device, screen: $screen)
                         .transition(.move(edge: .leading).combined(with: .opacity))
+                case .ambientSound:
+                    AmbientSoundScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .smartAudio:
+                    SmartAudioScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                case .spatialAudio:
+                    SpatialAudioScreen(headphones: headphones, screen: $screen)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 case .level(let mode):
                     LevelScreen(headphones: headphones, mode: mode, screen: $screen)
                         .transition(.move(edge: .trailing).combined(with: .opacity))

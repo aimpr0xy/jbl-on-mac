@@ -16,53 +16,45 @@ struct DeviceControlsView: View {
 
             batteryRow
 
-            SectionTitle("Ambient Sound Control")
-            ForEach(ListeningMode.allCases) { option in
-                SelectableRow(
-                    systemImage: option.systemImage,
-                    title: option.title,
-                    isActive: headphones.state.mode == option
-                ) {
-                    if option.hasLevel {
-                        levelChevron(for: option)
-                    }
-                } action: {
-                    headphones.select(option)
-                }
+            // Each row is blue while something other than Off is selected, gray when off or
+            // not yet reported.
+            SelectableRow(
+                systemImage: "ear.and.waveform",
+                title: "Ambient Sound Control",
+                subtitle: headphones.state.mode.map { String(localized: $0.title) },
+                isActive: headphones.state.mode.map { $0 != .off } ?? false
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .ambientSound
             }
 
             // Only shown once the headphones report a smart audio and video state.
-            if headphones.state.smartMode != nil {
-                SectionTitle("Smart Audio & Video")
-                    .padding(.top, 8)
-                ForEach(SmartAudioMode.allCases) { option in
-                    SelectableRow(
-                        systemImage: option.systemImage,
-                        title: option.title,
-                        isActive: headphones.state.smartMode == option
-                    ) {
-                        EmptyView()
-                    } action: {
-                        headphones.select(option)
-                    }
+            if let smart = headphones.state.smartMode {
+                SelectableRow(
+                    systemImage: "tv.and.mediabox",
+                    title: "Smart Audio & Video",
+                    subtitle: String(localized: smart.title),
+                    isActive: smart != .off
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .smartAudio
                 }
             }
 
             // Only shown once the headphones report a spatial audio state, so models
-            // without the feature don't get a dead section.
-            if headphones.state.spatialMode != nil {
-                SectionTitle("Spatial Audio")
-                    .padding(.top, 8)
-                ForEach(SpatialAudioMode.allCases) { option in
-                    SelectableRow(
-                        systemImage: option.systemImage,
-                        title: option.title,
-                        isActive: headphones.state.spatialMode == option
-                    ) {
-                        EmptyView()
-                    } action: {
-                        headphones.select(option)
-                    }
+            // without the feature don't get a dead row.
+            if let spatial = headphones.state.spatialMode {
+                SelectableRow(
+                    systemImage: "person.spatialaudio",
+                    title: "Spatial Audio",
+                    subtitle: String(localized: spatial.title),
+                    isActive: spatial != .off
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .spatialAudio
                 }
             }
 
@@ -112,21 +104,6 @@ struct DeviceControlsView: View {
                 screen = .calls
             }
         }
-    }
-
-    /// Opens the strength screen for a mode.
-    private func levelChevron(for mode: ListeningMode) -> some View {
-        Button {
-            screen = .level(mode)
-        } label: {
-            Image(systemName: "chevron.right")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "\(String(localized: mode.title)) level"))
     }
 
     /// Left, right and case charge, styled like the AirPods entry in the system Bluetooth menu.
