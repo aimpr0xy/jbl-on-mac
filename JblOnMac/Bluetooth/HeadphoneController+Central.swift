@@ -20,38 +20,28 @@ extension HeadphoneController: CBCentralManagerDelegate {
         let name = peripheral.name
             ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String
         log.notice("discovered name=\(name ?? "nil", privacy: .public) rssi=\(RSSI.intValue) adv=\(String(describing: advertisementData), privacy: .public)")
-        guard matchesSelectedDevice(name: name) else { return }
-        if matchesSelectedDeviceExactly(name: name) {
-            fallbackPeripheral = nil
-            central.stopScan()
-            connectToHeadphones(peripheral)
-        } else if fallbackPeripheral == nil {
-            // Wait briefly for an exact match before settling for a differently named JBL.
-            fallbackPeripheral = peripheral
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(3))
-                guard let self, let fallback = self.fallbackPeripheral, fallback === peripheral,
-                      self.peripheral == nil, self.selectedDevice != nil else { return }
-                self.fallbackPeripheral = nil
-                self.central.stopScan()
-                self.connectToHeadphones(fallback)
-            }
-        }
+        let match = nameMatch(for: name)
+        guard match != .none else { return }
+        known[peripheral.identifier] = peripheral
+        handle(.discovered(peripheral.identifier, match))
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         log.notice("didConnect \(peripheral.identifier.uuidString, privacy: .public) name=\(peripheral.name ?? "nil", privacy: .public)")
-        rememberedIdentifier = peripheral.identifier
+        // A link we already replaced or cancelled isn't the headphones' link to remember.
+        if peripheral.identifier == self.peripheral?.identifier {
+            rememberedIdentifier = peripheral.identifier
+        }
         expectedDisconnects.remove(peripheral.identifier)
-        peripheral.discoverServices(nil)
+        handle(.didConnect(peripheral.identifier))
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
         log.notice("didFailToConnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
         cancelling[peripheral.identifier] = nil
-        failedAttempts += 1
-        retryConnecting()
+        if expectedDisconnects.remove(peripheral.identifier) != nil { return }
+        handle(.didFailToConnect(peripheral.identifier))
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
@@ -59,31 +49,6 @@ extension HeadphoneController: CBCentralManagerDelegate {
         log.notice("didDisconnect error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public) expected=\(self.expectedDisconnects.contains(peripheral.identifier))")
         cancelling[peripheral.identifier] = nil
         if expectedDisconnects.remove(peripheral.identifier) != nil { return }
-        // Ignore the late callback for a link we already replaced with a new attempt.
-        if let current = self.peripheral, current !== peripheral { return }
-        writeCharacteristic = nil
-        self.peripheral = nil
-        retryConnecting()
-    }
-
-    /// Tries again after a failure or a dropped link, as long as a device is selected. The delay
-    /// doubles with each failed attempt (1, 2, 4, 8 s); after `maxFailedAttempts` it gives up.
-    func retryConnecting() {
-        guard selectedDevice != nil else { return }
-        guard failedAttempts < maxFailedAttempts else {
-            giveUpConnecting()
-            return
-        }
-        status = .connecting
-        connectAttempt += 1
-        let attempt = connectAttempt
-        let delay = 1 << max(failedAttempts - 1, 0)
-        log.notice("retrying in \(delay)s (failed attempts: \(self.failedAttempts))")
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(delay))
-            guard let self, self.connectAttempt == attempt, self.selectedDevice != nil,
-                  self.peripheral == nil else { return }
-            self.startScanning()
-        }
+        handle(.didDisconnect(peripheral.identifier))
     }
 }

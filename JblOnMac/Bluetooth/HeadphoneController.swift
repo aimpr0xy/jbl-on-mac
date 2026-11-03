@@ -18,6 +18,15 @@ final class HeadphoneController: NSObject {
         case scanning
         case connecting
         case connected
+
+        init(_ phase: ConnectionStateMachine.Phase) {
+            switch phase {
+            case .idle: self = .idle
+            case .scanning: self = .scanning
+            case .connecting: self = .connecting
+            case .connected: self = .connected
+            }
+        }
     }
 
     var devices: [JBLDevice] = []
@@ -47,16 +56,13 @@ final class HeadphoneController: NSObject {
     @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
     @ObservationIgnored var pairing: IOBluetoothDevicePair?
 
-    /// A discovered JBL whose name isn't an exact match; used only if no exact match
-    /// turns up shortly after.
-    @ObservationIgnored var fallbackPeripheral: CBPeripheral?
-    /// Failed attempts since the last successful connection; drives the retry backoff.
-    @ObservationIgnored var failedAttempts = 0
-    /// After this many failed attempts in a row, stop retrying and show an error.
-    let maxFailedAttempts = 5
-    @ObservationIgnored var connectAttempt = 0
-    /// Links we cancelled ourselves, so their late disconnect callback doesn't trigger a retry
-    /// that would tear down the fresh attempt.
+    /// Decides when to connect, retry, time out and give up; this class carries out its actions.
+    @ObservationIgnored var machine = ConnectionStateMachine()
+    /// Peripherals seen this session, by identifier, so the machine's actions can refer to them.
+    @ObservationIgnored var known: [UUID: CBPeripheral] = [:]
+    @ObservationIgnored var timers: [ConnectionStateMachine.Timer: Task<Void, Never>] = [:]
+    /// Links we cancelled ourselves, so their late disconnect callback isn't mistaken for a drop
+    /// of a fresh attempt that reuses the same identifier.
     @ObservationIgnored var expectedDisconnects: Set<UUID> = []
     /// Peripherals whose connection we cancelled, kept alive until Core Bluetooth reports the
     /// disconnect. Dropping the last reference while a link is still connecting makes Core
@@ -144,11 +150,10 @@ final class HeadphoneController: NSObject {
     func select(_ device: JBLDevice) {
         disconnect()
         stopDiscovery()
-        failedAttempts = 0
         connectionError = nil
         selectedDevice = device
         state = DeviceState()
-        startScanning()
+        handle(.selected)
     }
 
     /// Goes back to the device list. By default this also forgets the last device, so it isn't
@@ -296,16 +301,13 @@ final class HeadphoneController: NSObject {
             status = central.state == .unauthorized ? .unauthorized : .bluetoothOff
             return
         }
-        status = .scanning
         // Scanning doesn't deliver any results on some Macs, but connecting to a peripheral
         // by its remembered identifier does work, so keep retrying that.
         if let id = rememberedIdentifier,
            let match = central.retrievePeripherals(withIdentifiers: [id]).first {
             log.notice("connecting to remembered peripheral \(id.uuidString, privacy: .public)")
-            // The identifier may be stale (the headphones can change their LE address),
-            // so after a couple of failures also scan for a new one.
-            if failedAttempts >= 2 { central.scanForPeripherals(withServices: nil) }
-            connectToHeadphones(match)
+            known[id] = match
+            handle(.attempt(.remembered(id)))
             return
         }
         // The headphones may already hold a BLE link to the system (e.g. via the audio
@@ -314,11 +316,11 @@ final class HeadphoneController: NSObject {
         log.notice("already connected: \(alreadyConnected.map { $0.name ?? "nil" }, privacy: .public), target=\(self.selectedDevice?.name ?? "nil", privacy: .public), state=\(self.central.state.rawValue)")
         if let match = alreadyConnected.first(where: { matchesSelectedDeviceExactly(name: $0.name) })
             ?? alreadyConnected.first(where: { matchesSelectedDevice(name: $0.name) }) {
-            connectToHeadphones(match)
+            known[match.identifier] = match
+            handle(.attempt(.alreadyConnected(match.identifier)))
             return
         }
-        armWatchdog()
-        central.scanForPeripherals(withServices: nil)
+        handle(.attempt(.none))
     }
 
     /// Whether a BLE name is the same as the selected device's classic Bluetooth name. The LE side
@@ -338,38 +340,68 @@ final class HeadphoneController: NSObject {
             || name.localizedCaseInsensitiveContains("JBL")
     }
 
-    func connectToHeadphones(_ peripheral: CBPeripheral) {
-        // A previous attempt may still be connecting (e.g. the remembered identifier was stale and
-        // a scan found the headphones under a new one); cancel it instead of just dropping it.
-        if let previous = self.peripheral, previous.identifier != peripheral.identifier {
-            cancelConnection(previous)
-        }
-        self.peripheral = peripheral
-        peripheral.delegate = self
-        status = .connecting
-        log.notice("connectToHeadphones state=\(peripheral.state.rawValue) name=\(peripheral.name ?? "nil", privacy: .public)")
-        if peripheral.state == .connected {
-            peripheral.discoverServices(nil)
-        } else {
-            central.connect(peripheral)
-        }
-        armWatchdog()
+    /// How well a BLE name matches the selected device.
+    func nameMatch(for name: String?) -> ConnectionStateMachine.NameMatch {
+        if matchesSelectedDeviceExactly(name: name) { return .exact }
+        return matchesSelectedDevice(name: name) ? .fallback : .none
     }
 
-    /// Any attempt can hang forever (stale identifier, headphones still busy with another link,
-    /// a scan that never delivers a result, services that never show up), so if we're not
-    /// connected after a while, tear everything down and start over.
-    func armWatchdog() {
-        connectAttempt += 1
-        let attempt = connectAttempt
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(10))
-            guard let self, self.connectAttempt == attempt, self.status != .connected,
-                  self.selectedDevice != nil else { return }
-            log.notice("watchdog: attempt timed out")
-            self.failedAttempts += 1
-            self.disconnect()
-            self.retryConnecting()
+    // MARK: - Running the connection state machine
+
+    /// Feeds an event to the state machine and carries out what it asks for.
+    func handle(_ event: ConnectionStateMachine.Event) {
+        let phase = machine.phase
+        let actions = machine.handle(event)
+        log.debug("\(String(describing: event), privacy: .public) -> \(String(describing: actions), privacy: .public)")
+        if machine.phase != phase { status = Status(machine.phase) }
+        for action in actions { perform(action) }
+        // The machine dropped the link (failure, disconnect, timeout or deselect).
+        if machine.current == nil {
+            peripheral = nil
+            writeCharacteristic = nil
+            pendingWrites.removeAll()
+        }
+    }
+
+    private func perform(_ action: ConnectionStateMachine.Action) {
+        switch action {
+        case .beginAttempt:
+            startScanning()
+        case .connect(let id):
+            guard let target = known[id] else { return }
+            if peripheral?.identifier != id {
+                writeCharacteristic = nil
+                pendingWrites.removeAll()
+            }
+            peripheral = target
+            target.delegate = self
+            log.notice("connecting state=\(target.state.rawValue) name=\(target.name ?? "nil", privacy: .public)")
+            if target.state == .connected {
+                target.discoverServices(nil)
+            } else {
+                central.connect(target)
+            }
+        case .scan:
+            central.scanForPeripherals(withServices: nil)
+        case .stopScan:
+            central.stopScan()
+        case .cancel(let id):
+            if let target = known[id] { cancelConnection(target) }
+        case .discoverServices(let id):
+            known[id]?.discoverServices(nil)
+        case .startTimer(let timer, let duration):
+            timers[timer]?.cancel()
+            timers[timer] = Task { [weak self] in
+                do { try await Task.sleep(for: duration) } catch { return }
+                guard let self, !Task.isCancelled else { return }
+                self.timers[timer] = nil
+                if timer == .watchdog { log.notice("watchdog: attempt timed out") }
+                self.handle(.timerFired(timer))
+            }
+        case .cancelTimer(let timer):
+            timers.removeValue(forKey: timer)?.cancel()
+        case .giveUp:
+            giveUpConnecting()
         }
     }
 
@@ -377,18 +409,15 @@ final class HeadphoneController: NSObject {
     /// the radio busy forever when the headphones are off or out of range.
     func giveUpConnecting() {
         let name = selectedDevice?.name ?? String(localized: "the headphones")
-        log.notice("giving up after \(self.failedAttempts) failed attempts")
+        log.notice("giving up after \(self.machine.failedAttempts) failed attempts")
         deselect(forgetLastDevice: false)
         connectionError = LocalizedStringResource("Couldn't reach \(name). Make sure it's turned on and nearby, then try again.")
     }
 
+    /// Drops the link and stops everything the state machine had running.
     func disconnect() {
-        central.stopScan()
-        fallbackPeripheral = nil
-        if let peripheral { cancelConnection(peripheral) }
-        peripheral = nil
-        writeCharacteristic = nil
-        pendingWrites.removeAll()
+        handle(.deselected)
+        known.removeAll()
     }
 
     /// Cancels a link on purpose and keeps the peripheral alive until the cancel completes.
