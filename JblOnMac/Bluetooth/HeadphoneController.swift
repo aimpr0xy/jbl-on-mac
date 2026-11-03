@@ -368,7 +368,7 @@ final class HeadphoneController: NSObject {
         case .beginAttempt:
             startScanning()
         case .connect(let id):
-            guard let target = known[id] else { return }
+            guard central.state == .poweredOn, let target = known[id] else { return }
             if peripheral?.identifier != id {
                 writeCharacteristic = nil
                 pendingWrites.removeAll()
@@ -382,11 +382,17 @@ final class HeadphoneController: NSObject {
                 central.connect(target)
             }
         case .scan:
+            guard central.state == .poweredOn else { return }
             central.scanForPeripherals(withServices: nil)
         case .stopScan:
+            // CoreBluetooth rejects scan commands unless the radio is on. There's nothing
+            // to stop otherwise, and the machine can ask for this while Bluetooth is off.
+            guard central.state == .poweredOn else { return }
             central.stopScan()
         case .cancel(let id):
-            if let target = known[id] { cancelConnection(target) }
+            // Likewise, the link is already gone if Bluetooth isn't powered on.
+            guard central.state == .poweredOn, let target = known[id] else { return }
+            cancelConnection(target)
         case .discoverServices(let id):
             known[id]?.discoverServices(nil)
         case .startTimer(let timer, let duration):
