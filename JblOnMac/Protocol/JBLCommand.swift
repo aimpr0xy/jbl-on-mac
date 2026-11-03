@@ -21,6 +21,7 @@ import Foundation
 ///     0D  voice aware             AA 06 06 00 00 00 0D 02 <00 off | 01 on> <1 low | 2 mid | 3 high>
 ///   equalizer write          AA A2 74 00 03 <preset> <headroom f32> 30 00*8 | 10 x (0A 01 <gain f32> <Hz f32>) | 0A
 ///                            (floats little-endian; the app writes to handle 0x002D, same as the others)
+///   equalizer query          AA A2 02 01 FF   (replies with the same frame as a write echo: AA A2 74 00 04 <preset> ...)
 /// Replies are decoded by `JBLReply`.
 enum JBLCommand: Equatable {
     // Writes
@@ -46,14 +47,15 @@ enum JBLCommand: Equatable {
     case querySmartAudio
     case querySpatialAudio
     case queryBalance
+    case queryEqualizer
     case queryVolumeLimiter
     case queryCallFeature(id: UInt8)
 
     /// Everything asked for once notifications are on.
     static let initialQueries: [JBLCommand] = [
         .queryListeningMode, .queryLevels, .queryEarbudBattery, .queryCaseBattery,
-        .querySmartAudio, .querySpatialAudio, .queryBalance, .queryVolumeLimiter,
-        .queryCallFeature(id: 0x23), .queryCallFeature(id: 0x14),
+        .querySmartAudio, .querySpatialAudio, .queryBalance, .queryEqualizer,
+        .queryVolumeLimiter, .queryCallFeature(id: 0x23), .queryCallFeature(id: 0x14),
         .queryCallFeature(id: 0x16), .queryCallFeature(id: 0x0D),
     ]
 
@@ -98,6 +100,7 @@ enum JBLCommand: Equatable {
         case .querySmartAudio: return [0xAA, 0x80, 0x01, 0x01]
         case .querySpatialAudio: return Self.featureQuery(id: 0x0C)
         case .queryBalance: return [0xAA, 0xA8, 0x01, 0x01]
+        case .queryEqualizer: return [0xAA, 0xA2, 0x02, 0x01, 0xFF]
         case .queryVolumeLimiter: return Self.featureQuery(id: 0x20)
         case .queryCallFeature(let id): return Self.featureQuery(id: id)
         }
@@ -117,9 +120,10 @@ enum JBLCommand: Equatable {
         case .setCallSound: return .queryCallFeature(id: 0x14)
         case .setCallVoice: return .queryCallFeature(id: 0x16)
         case .setVoiceAware: return .queryCallFeature(id: 0x0D)
-        case .setEqualizer, .queryListeningMode, .queryLevels, .queryEarbudBattery,
+        case .setEqualizer: return .queryEqualizer
+        case .queryListeningMode, .queryLevels, .queryEarbudBattery,
              .queryCaseBattery, .querySmartAudio, .querySpatialAudio, .queryBalance,
-             .queryVolumeLimiter, .queryCallFeature:
+             .queryEqualizer, .queryVolumeLimiter, .queryCallFeature:
             return nil
         }
     }

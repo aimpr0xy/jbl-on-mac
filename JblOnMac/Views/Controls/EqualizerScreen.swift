@@ -25,5 +25,7 @@ struct EqualizerScreen: View {
                 }
             }
         }
+        // The preset can be changed from another app (e.g. JBL's on a phone) while this one is open.
+        .task { headphones.send(.queryEqualizer) }
     }
 }
