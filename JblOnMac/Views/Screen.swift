@@ -10,5 +10,8 @@ enum Screen: Hashable {
     case balance
     case equalizer
     case calls
+    case callSound
+    case callVoice
+    case voiceAware
     case gestures(EarbudSide)
 }
