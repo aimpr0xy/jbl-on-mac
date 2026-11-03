@@ -4,7 +4,8 @@ import Foundation
 import IOBluetooth
 import os
 
-let log = Logger(subsystem: "JblOnMac", category: "BLE")
+/// Only used through `HeadphoneController.log`, which adds the device info to every line.
+let logger = Logger(subsystem: "JblOnMac", category: "BLE")
 
 /// Discovers nearby JBL products, connects them through macOS Bluetooth, and talks to the
 /// selected one over BLE. Packets are built by `JBLCommand` and decoded by `JBLReply`.
@@ -144,6 +145,33 @@ final class HeadphoneController: NSObject {
         select(JBLDevice(name: last.name, address: last.address, isConnected: true))
     }
 
+    // MARK: - Logging
+
+    /// Logs a message prefixed with the selected device and what it reported about itself, so
+    /// every line in a shared log shows which model and firmware it came from.
+    func log(_ message: String, level: OSLogType = .default) {
+        let device = selectedDevice.map { "device=\"\($0.name)\" \(state.info.logDescription ?? "info=unknown")" } ?? "device=none"
+        logger.log(level: level, "[\(device, privacy: .public)] \(message, privacy: .public)")
+    }
+
+    /// Device info of the selected device, saved per device (by classic Bluetooth address) so log
+    /// lines include it from the start of the next connection, before it is read again.
+    var savedDeviceInfo: DeviceInfo? {
+        get {
+            guard let key = deviceInfoKey,
+                  let data = UserDefaults.standard.data(forKey: key) else { return nil }
+            return try? JSONDecoder().decode(DeviceInfo.self, from: data)
+        }
+        set {
+            guard let key = deviceInfoKey else { return }
+            UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: key)
+        }
+    }
+
+    private var deviceInfoKey: String? {
+        selectedDevice.map { "deviceInfo.\($0.address)" }
+    }
+
     // MARK: - Selecting a device and controlling it over BLE
 
     /// Picks a connected headphone and opens its BLE link so its controls can be shown.
@@ -153,6 +181,7 @@ final class HeadphoneController: NSObject {
         connectionError = nil
         selectedDevice = device
         state = DeviceState()
+        state.info = savedDeviceInfo ?? DeviceInfo()
         handle(.selected)
     }
 
@@ -172,7 +201,7 @@ final class HeadphoneController: NSObject {
         guard let peripheral, let writeCharacteristic else { return }
         pendingWrites.append(command)
         let bytes = command.bytes
-        log.debug("sent \(String(describing: command), privacy: .public): \(bytes.map { String(format: "%02X", $0) }.joined(separator: " "), privacy: .public)")
+        log("sent \(String(describing: command)): \(bytes.map { String(format: "%02X", $0) }.joined(separator: " "))", level: .debug)
         peripheral.writeValue(Data(bytes), for: writeCharacteristic, type: .withResponse)
     }
 
@@ -183,7 +212,7 @@ final class HeadphoneController: NSObject {
         guard !pendingWrites.isEmpty else { return }
         let command = pendingWrites.removeFirst()
         guard let error else { return }
-        log.error("write failed for \(String(describing: command), privacy: .public): \(error.localizedDescription, privacy: .public)")
+        log("write failed for \(String(describing: command)): \(error.localizedDescription)", level: .error)
         if let query = command.refreshQuery {
             send(query)
         }
@@ -299,7 +328,7 @@ final class HeadphoneController: NSObject {
     }
 
     func startScanning() {
-        log.notice("authorization=\(CBCentralManager.authorization.rawValue) state=\(self.central.state.rawValue)")
+        log("authorization=\(CBCentralManager.authorization.rawValue) state=\(self.central.state.rawValue)")
         guard CBCentralManager.authorization == .allowedAlways else {
             status = .unauthorized
             return
@@ -312,7 +341,7 @@ final class HeadphoneController: NSObject {
         // by its remembered identifier does work, so keep retrying that.
         if let id = rememberedIdentifier,
            let match = central.retrievePeripherals(withIdentifiers: [id]).first {
-            log.notice("connecting to remembered peripheral \(id.uuidString, privacy: .public)")
+            log("connecting to remembered peripheral \(id.uuidString)")
             known[id] = match
             handle(.attempt(.remembered(id)))
             return
@@ -320,7 +349,7 @@ final class HeadphoneController: NSObject {
         // The headphones may already hold a BLE link to the system (e.g. via the audio
         // connection), in which case they don't advertise and a scan would never find them.
         let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [CBUUID(string: "1800")])
-        log.notice("already connected: \(alreadyConnected.map { $0.name ?? "nil" }, privacy: .public), target=\(self.selectedDevice?.name ?? "nil", privacy: .public), state=\(self.central.state.rawValue)")
+        log("already connected: \(alreadyConnected.map { $0.name ?? "nil" }), target=\(self.selectedDevice?.name ?? "nil"), state=\(self.central.state.rawValue)")
         if let match = alreadyConnected.first(where: { matchesSelectedDeviceExactly(name: $0.name) })
             ?? alreadyConnected.first(where: { matchesSelectedDevice(name: $0.name) }) {
             known[match.identifier] = match
@@ -359,7 +388,7 @@ final class HeadphoneController: NSObject {
     func handle(_ event: ConnectionStateMachine.Event) {
         let phase = machine.phase
         let actions = machine.handle(event)
-        log.debug("\(String(describing: event), privacy: .public) -> \(String(describing: actions), privacy: .public)")
+        log("\(String(describing: event)) -> \(String(describing: actions))", level: .debug)
         if machine.phase != phase { status = Status(machine.phase) }
         for action in actions { perform(action) }
         // The machine dropped the link (failure, disconnect, timeout or deselect).
@@ -382,7 +411,7 @@ final class HeadphoneController: NSObject {
             }
             peripheral = target
             target.delegate = self
-            log.notice("connecting state=\(target.state.rawValue) name=\(target.name ?? "nil", privacy: .public)")
+            log("connecting state=\(target.state.rawValue) name=\(target.name ?? "nil")")
             if target.state == .connected {
                 target.discoverServices(nil)
             } else {
@@ -408,7 +437,7 @@ final class HeadphoneController: NSObject {
                 do { try await Task.sleep(for: duration) } catch { return }
                 guard let self, !Task.isCancelled else { return }
                 self.timers[timer] = nil
-                if timer == .watchdog { log.notice("watchdog: attempt timed out") }
+                if timer == .watchdog { self.log("watchdog: attempt timed out") }
                 self.handle(.timerFired(timer))
             }
         case .cancelTimer(let timer):
@@ -422,7 +451,7 @@ final class HeadphoneController: NSObject {
     /// the radio busy forever when the headphones are off or out of range.
     func giveUpConnecting() {
         let name = selectedDevice?.name ?? String(localized: "the headphones")
-        log.notice("giving up after \(self.machine.failedAttempts) failed attempts")
+        log("giving up after \(self.machine.failedAttempts) failed attempts")
         deselect(forgetLastDevice: false)
         connectionError = LocalizedStringResource("Couldn't reach \(name). Make sure it's turned on and nearby, then try again.")
     }
