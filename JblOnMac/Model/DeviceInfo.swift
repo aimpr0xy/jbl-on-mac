@@ -1,11 +1,12 @@
 import CoreBluetooth
 import Foundation
 
-/// What the selected headphones report about themselves through the standard Bluetooth Device
-/// Information service. The JBL Tune Beam 2 only offers the firmware revision there, so that's
-/// the only value read. Nil until read.
+/// What the selected headphones report about themselves. The JBL Tune Beam 2 only offers the
+/// firmware revision, through the standard Bluetooth Device Information service; the Tune 230NC
+/// reports its earbud and case firmware in its own replies instead. Nil until read.
 struct DeviceInfo: Codable, Equatable {
     var firmware: String?
+    var caseFirmware: String?
 
     /// Device Information service and the firmware revision characteristic read from it.
     static let service = CBUUID(string: "180A")
@@ -26,8 +27,9 @@ struct DeviceInfo: Codable, Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\0")))
     }
 
-    /// Short form for log lines, or nil if the firmware revision hasn't been read yet.
+    /// Short form for log lines, or nil if no firmware version has been read yet.
     var logDescription: String? {
-        firmware.map { "firmware=\($0)" }
+        let parts = [firmware.map { "firmware=\($0)" }, caseFirmware.map { "case_firmware=\($0)" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 }

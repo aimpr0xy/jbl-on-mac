@@ -21,9 +21,6 @@ enum ListeningMode: String, CaseIterable, Identifiable {
     /// The modes the headphones report with one flag each (in flag order); `off` is all flags cleared.
     static let flagged: [ListeningMode] = [.noiseCanceling, .ambientAware, .talkThru]
 
-    /// Whether the headphones have an adjustable strength for this mode.
-    var hasLevel: Bool { self == .noiseCanceling || self == .ambientAware }
-
     var systemImage: String {
         switch self {
         case .noiseCanceling: "waveform.slash"

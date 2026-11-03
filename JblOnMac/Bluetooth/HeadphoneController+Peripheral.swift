@@ -10,7 +10,7 @@ extension HeadphoneController: CBPeripheralDelegate {
                     didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
         guard characteristic.uuid == JBLUUID.notify, characteristic.isNotifying else { return }
-        for query in JBLCommand.initialQueries {
+        for query in model.initialQueries {
             send(query)
         }
     }
@@ -34,6 +34,12 @@ extension HeadphoneController: CBPeripheralDelegate {
             return
         }
         guard characteristic.uuid == JBLUUID.notify, let bytes = characteristic.value.map([UInt8].init) else { return }
+        // Chunks of a Tune 230NC download are raw `<index> <bytes…>`, not frames. Each is acked.
+        if downloadBuffer != nil, let index = bytes.first, index != 0xAA {
+            downloadBuffer?.append(contentsOf: bytes.dropFirst())
+            send(.acknowledgeDownload)
+            return
+        }
         for reply in JBLReply.decode(bytes) {
             apply(reply)
         }
@@ -64,12 +70,45 @@ extension HeadphoneController: CBPeripheralDelegate {
             case .right: state.rightBattery = percent
             case .chargingCase: state.caseBattery = percent
             }
+        case .acknowledged(let group, let status):
+            guard group == 0x41 else { break }
+            if status == 0 {
+                uploadPacketAcknowledged()
+            } else {
+                // Rejected: stop the upload and show what the headphones actually use.
+                log("equalizer upload rejected with status \(status)", level: .error)
+                uploadRemaining = nil
+                queuedEqualizer = nil
+                send(.queryEqualizerCurve)
+            }
+        case .firmware(let version):
+            state.info.firmware = version
+            savedDeviceInfo = state.info
+        case .caseFirmware(let version):
+            state.info.caseFirmware = version
+            savedDeviceInfo = state.info
+        case .downloadStarted:
+            downloadBuffer = []
+            send(.acknowledgeDownload)
+        case .downloadFinished:
+            // Nil for a curve that isn't one of the presets, such as a custom one.
+            if let buffer = downloadBuffer, let gains = JBLReply.equalizerGains(fromDownload: buffer) {
+                state.equalizer = model.equalizerPresets.first { $0.tune230NCGains == gains }
+            }
+            downloadBuffer = nil
+            send(.acknowledgeDownload)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
         log("didDiscoverServices \((peripheral.services ?? []).map { $0.uuid.uuidString }) error=\(error.map { String(describing: $0) } ?? "nil")")
+        // A device can have several LE links (the Tune 230NC has one that only does pairing). Forget
+        // one without the JBL service so the next attempt looks for the right one.
+        if !(peripheral.services ?? []).contains(where: { $0.uuid == JBLUUID.service }) {
+            log("no JBL service on this link, forgetting it", level: .error)
+            rememberedIdentifier = nil
+        }
         for service in peripheral.services ?? [] {
             if service.uuid == DeviceInfo.service {
                 peripheral.discoverCharacteristics(DeviceInfo.characteristics, for: service)

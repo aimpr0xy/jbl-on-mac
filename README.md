@@ -6,26 +6,26 @@ JBL doesn't make a Mac version of its companion app. This app talks to the headp
 
 ## Compatibility
 
-Only one device has been tested so far. JBL uses the same protocol across many products, so other models might work fully, partly, or not at all.
+Only one device has been fully tested so far. Support for the JBL Tune 230NC TWS was built from captures of the JBL app and is still being tested with this app. JBL uses the same protocol across many products, so other models might work fully, partly, or not at all.
 
-Legend: ✅ works · ⚠️ partly works (see notes) · ❌ doesn't work · ❔ not tested
+Legend: ✅ works · ⚠️ partly works (see notes) · ❌ doesn't work · ❔ not tested · — the model doesn't have this feature
 
-| Feature | JBL Tune Beam 2 |
-| --- | --- |
-| Pairing and connection: pick the device from the menu bar, then pair and connect without going to System Settings | ✅ |
-| Battery: left earbud, right earbud, and charging case | ✅ |
-| Ambient Sound Control: Noise Canceling, Ambient Aware, Talk Thru, or Off | ✅ |
-| Noise Canceling and Ambient Aware levels: strength from 1 to 7 | ✅ |
-| Spatial Audio: Off, Fixed, or Head Tracking | ✅ |
-| Smart Audio & Video: Off, Audio Mode, or Video Mode | ✅ |
-| Equalizer: Off, Studio, Bass, Club, Extreme Bass, Vocal, or Jazz | ✅ |
-| Balance: left/right balance | ✅ |
-| Touch Controls: left and right earbud set to Ambient Sound Control, Volume Control, Playback Control, or None | ✅ |
-| Safe Sound: volume limiter on or off | ✅ |
-| Sound Level Optimizer: on or off | ✅ |
-| Call Sound: Natural, Increased Treble, or Increased Bass | ✅ |
-| Call Voice: Natural, Powerful, or Bright | ✅ |
-| Voice Aware: on or off, with a Low, Mid, or High level | ✅ |
+| Feature | JBL Tune Beam 2 | JBL Tune 230NC TWS |
+| --- | --- | --- |
+| Pairing and connection: pick the device from the menu bar, then pair and connect without going to System Settings | ✅ | ✅ |
+| Battery: left earbud, right earbud, and charging case | ✅ | ❔ |
+| Ambient Sound Control: Noise Canceling, Ambient Aware, Talk Thru, or Off | ✅ | ❔ |
+| Noise Canceling and Ambient Aware levels: strength from 1 to 7 | ✅ | — |
+| Spatial Audio: Off, Fixed, or Head Tracking | ✅ | — |
+| Smart Audio & Video: Off, Audio Mode, or Video Mode | ✅ | ❔ |
+| Equalizer: Off, Studio, Bass, Club, Extreme Bass, Vocal, or Jazz | ✅ | ❔ Jazz, Vocal, Bass, Club, or Studio |
+| Balance: left/right balance | ✅ | — |
+| Touch Controls: left and right earbud set to Ambient Sound Control, Volume Control, Playback Control, or None | ✅ | ❔ |
+| Safe Sound: volume limiter on or off | ✅ | — |
+| Sound Level Optimizer: on or off | ✅ | — |
+| Call Sound: Natural, Increased Treble, or Increased Bass | ✅ | — |
+| Call Voice: Natural, Powerful, or Bright | ✅ | — |
+| Voice Aware: on or off, with a Low, Mid, or High level | ✅ | ❔ |
 
 Have a different JBL device? Please test it and add a column for it to this table. [CONTRIBUTING.md](CONTRIBUTING.md#reporting-device-compatibility) explains how, and also covers capturing packets for features that don't work yet.
 
@@ -63,7 +63,7 @@ log stream --level debug --predicate 'subsystem == "JblOnMac"'
 ## Project structure
 
 | Folder | Contents |
-| --- | --- |
+| --- | --- | --- |
 | `JblOnMac/App` | App entry point and the `MenuBarExtra` scene |
 | `JblOnMac/Bluetooth` | `HeadphoneController`: classic Bluetooth discovery and pairing (IOBluetooth), plus the BLE connection (CoreBluetooth) |
 | `JblOnMac/Protocol` | The JBL BLE protocol: characteristic UUIDs, the commands we send (`JBLCommand`), and how replies are decoded (`JBLReply`) |

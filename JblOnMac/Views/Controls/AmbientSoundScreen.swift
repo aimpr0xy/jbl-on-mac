@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Ambient sound control screen: one row per mode, with a chevron to the strength screen
-/// for the modes that have one.
+/// for the modes whose strength the headphones report.
 struct AmbientSoundScreen: View {
     let headphones: HeadphoneController
     @Binding var screen: Screen
@@ -21,7 +21,7 @@ struct AmbientSoundScreen: View {
                     subtitle: headphones.state.level(for: option).map { String(localized: "Level \($0)") },
                     isActive: headphones.state.mode == option
                 ) {
-                    if option.hasLevel {
+                    if headphones.state.level(for: option) != nil {
                         levelChevron(for: option)
                     }
                 } action: {

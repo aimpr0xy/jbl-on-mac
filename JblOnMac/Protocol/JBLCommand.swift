@@ -24,6 +24,20 @@ import Foundation
 ///   equalizer query          AA A2 02 01 FF   (replies with the same frame as a write echo: AA A2 74 00 04 <preset> ...)
 ///   touch controls write     AA 77 09 00 <slot> <action> x 4   (left slots 06 07 08 0C, right 09 0A 0B 0E; see GestureControl)
 ///   touch controls query     AA 77 02 01 FF   (both earbuds; FD left only, FE right only)
+///
+/// The Tune 230NC (see `JBLModel`) shares the ambient sound commands (without levels) and the touch
+/// controls query, but speaks its own dialect for the rest:
+///   battery query            AA 25 01 00
+///   smart audio/video write  AA 81 08 <8 payload bytes, see SmartAudioMode>   (query AA 82 00)
+///   voice aware write        AA 98 02 00 <00 off | 01 low | 02 mid | 03 high>   (query AA 98 01 01)
+///   status query             AA 11 00   (replies with the name and earbud firmware, see JBLReply)
+///   case firmware query      AA 26 01 00
+///   touch controls write     AA 77 0B 00 <slot> <action> x 4 <other side's last slot> <action>
+///   equalizer write          AA 41 <len> <chunks> | <index> <up to 79 bytes> per chunk | AA 05 41
+///                            (each packet waits for the ack AA 00 02 41 00; payload below)
+///                            04 00 <headroom f32> 30 00*8 0A 00 00 00 | 10 x (01 00 00 00 <gain f32> <Hz f32> <Q f32>)
+///   equalizer query          AA 42 01 01   (replies with a chunked transfer, see `JBLReply`, and every
+///                            packet of it is acked with AA 01 02 43 00)
 /// Replies are decoded by `JBLReply`.
 enum JBLCommand: Equatable {
     // Writes
@@ -41,6 +55,14 @@ enum JBLCommand: Equatable {
     case setVoiceAware(enabled: Bool, level: VoiceAwareLevel)
     case setEqualizer(EqualizerPreset)
     case setGestureControl(EarbudSide, GestureControl)
+    /// Tune 230NC: also carries the other earbud's last slot, as its app always sends it.
+    case setGestureControlWithOtherSide(EarbudSide, GestureControl, other: GestureControl)
+    /// Tune 230NC: one packet of a chunked equalizer write; see `equalizerUpload(_:)`.
+    case startUpload(length: Int, chunks: Int)
+    case uploadChunk(index: Int, [UInt8])
+    case finishUpload
+    /// Tune 230NC: acknowledges one packet of a chunked reply.
+    case acknowledgeDownload
 
     // Queries
     case queryListeningMode
@@ -54,14 +76,20 @@ enum JBLCommand: Equatable {
     case queryVolumeLimiter
     case queryCallFeature(id: UInt8)
     case queryGestureControls
+    /// Tune 230NC: the same modes as `setSmartAudio`, in another command group.
+    case setTune230NCSmartAudio(SmartAudioMode)
+    /// Tune 230NC: nil turns voice aware off.
+    case setTune230NCVoiceAware(VoiceAwareLevel?)
+    /// Tune 230NC queries.
+    case queryBatteryLevels
+    case queryEqualizerCurve
+    case queryTune230NCSmartAudio
+    case queryTune230NCVoiceAware
+    case queryStatus
+    case queryCaseFirmware
 
-    /// Everything asked for once notifications are on.
-    static let initialQueries: [JBLCommand] = [
-        .queryListeningMode, .queryLevels, .queryEarbudBattery, .queryCaseBattery,
-        .querySmartAudio, .querySpatialAudio, .queryBalance, .queryEqualizer,
-        .queryVolumeLimiter, .queryCallFeature(id: 0x23), .queryCallFeature(id: 0x14),
-        .queryCallFeature(id: 0x16), .queryCallFeature(id: 0x0D), .queryGestureControls,
-    ]
+    /// Payload bytes per equalizer upload chunk, after the chunk index.
+    static let uploadChunkSize = 79
 
     var bytes: [UInt8] {
         switch self {
@@ -99,6 +127,23 @@ enum JBLCommand: Equatable {
         case .setGestureControl(let side, let control):
             // Slot and action alternate: `<slot> <action> <slot> <action> ...`.
             return [0xAA, 0x77, 0x09, 0x00] + zip(side.slots, control.actions(for: side)).flatMap { [$0, $1] }
+        case .setGestureControlWithOtherSide(let side, let control, let other):
+            // Both earbuds use the left one's actions on this model, also for ambient sound control.
+            let pairs = zip(side.slots, control.actions(for: .left)).flatMap { [$0, $1] }
+            let otherSlot = [side.opposite.slots[3], other.actions(for: .left)[3]]
+            return [0xAA, 0x77, 0x0B, 0x00] + pairs + otherSlot
+        case .startUpload(let length, let chunks):
+            return [0xAA, 0x41, UInt8(clamping: length), UInt8(clamping: chunks)]
+        case .uploadChunk(let index, let payload):
+            return [UInt8(clamping: index)] + payload
+        case .finishUpload:
+            return [0xAA, 0x05, 0x41]
+        case .acknowledgeDownload:
+            return [0xAA, 0x01, 0x02, 0x43, 0x00]
+        case .setTune230NCSmartAudio(let mode):
+            return [0xAA, 0x81, 0x08] + mode.payload
+        case .setTune230NCVoiceAware(let level):
+            return [0xAA, 0x98, 0x02, 0x00, level?.rawValue ?? 0]
 
         case .queryListeningMode: return [0xAA, 0x91, 0x01, 0x11]
         case .queryLevels: return [0xAA, 0x91, 0x01, 0x21]
@@ -111,6 +156,12 @@ enum JBLCommand: Equatable {
         case .queryVolumeLimiter: return Self.featureQuery(id: 0x20)
         case .queryCallFeature(let id): return Self.featureQuery(id: id)
         case .queryGestureControls: return [0xAA, 0x77, 0x02, 0x01, 0xFF]
+        case .queryBatteryLevels: return [0xAA, 0x25, 0x01, 0x00]
+        case .queryEqualizerCurve: return [0xAA, 0x42, 0x01, 0x01]
+        case .queryTune230NCSmartAudio: return [0xAA, 0x82, 0x00]
+        case .queryTune230NCVoiceAware: return [0xAA, 0x98, 0x01, 0x01]
+        case .queryStatus: return [0xAA, 0x11, 0x00]
+        case .queryCaseFirmware: return [0xAA, 0x26, 0x01, 0x00]
         }
     }
 
@@ -129,12 +180,33 @@ enum JBLCommand: Equatable {
         case .setCallVoice: return .queryCallFeature(id: 0x16)
         case .setVoiceAware: return .queryCallFeature(id: 0x0D)
         case .setEqualizer: return .queryEqualizer
-        case .setGestureControl: return .queryGestureControls
-        case .queryListeningMode, .queryLevels, .queryEarbudBattery,
+        case .setGestureControl, .setGestureControlWithOtherSide: return .queryGestureControls
+        case .startUpload, .uploadChunk, .finishUpload: return .queryEqualizerCurve
+        case .setTune230NCSmartAudio: return .queryTune230NCSmartAudio
+        case .setTune230NCVoiceAware: return .queryTune230NCVoiceAware
+        case .acknowledgeDownload, .queryListeningMode, .queryLevels, .queryEarbudBattery,
              .queryCaseBattery, .querySmartAudio, .querySpatialAudio, .queryBalance,
-             .queryEqualizer, .queryVolumeLimiter, .queryCallFeature, .queryGestureControls:
+             .queryEqualizer, .queryVolumeLimiter, .queryCallFeature, .queryGestureControls,
+             .queryBatteryLevels, .queryEqualizerCurve, .queryTune230NCSmartAudio,
+             .queryTune230NCVoiceAware, .queryStatus, .queryCaseFirmware:
             return nil
         }
+    }
+
+    /// Tune 230NC: the packets that write a preset, in order. Its app always sends preset id 00
+    /// followed by the whole curve.
+    static func equalizerUpload(_ preset: EqualizerPreset) -> [JBLCommand] {
+        var payload: [UInt8] = [0x04, 0x00] + littleEndian(preset.tune230NCHeadroom)
+        payload += [0x30] + [UInt8](repeating: 0, count: 8) + [0x0A, 0x00, 0x00, 0x00]
+        for (gain, frequency) in zip(preset.tune230NCGains, EqualizerPreset.frequencies) {
+            payload += [0x01, 0x00, 0x00, 0x00] + littleEndian(gain) + littleEndian(frequency) + littleEndian(1)
+        }
+        let chunks = stride(from: 0, to: payload.count, by: uploadChunkSize).map {
+            Array(payload[$0..<min($0 + uploadChunkSize, payload.count)])
+        }
+        return [.startUpload(length: payload.count, chunks: chunks.count)]
+            + chunks.enumerated().map { .uploadChunk(index: $0.offset, $0.element) }
+            + [.finishUpload]
     }
 
     private static func littleEndian(_ value: Float) -> [UInt8] {

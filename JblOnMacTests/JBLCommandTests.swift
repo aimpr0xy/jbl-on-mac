@@ -86,8 +86,9 @@ struct JBLCommandTests {
         #expect(packet.last == 0x0A)
     }
 
-    @Test func everyInitialQueryIsAQuery() {
-        for query in JBLCommand.initialQueries {
+    @Test(arguments: [JBLModel.tuneBeam2, .tune230NC])
+    func everyInitialQueryIsAQuery(_ model: JBLModel) {
+        for query in model.initialQueries {
             #expect(query.refreshQuery == nil)
         }
     }

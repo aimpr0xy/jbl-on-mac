@@ -13,7 +13,7 @@ struct EqualizerScreen: View {
                 EmptyView()
             }
 
-            ForEach(EqualizerPreset.allCases) { option in
+            ForEach(headphones.model.equalizerPresets) { option in
                 SelectableRow(
                     systemImage: option.systemImage,
                     title: option.title,
@@ -26,6 +26,6 @@ struct EqualizerScreen: View {
             }
         }
         // The preset can be changed from another app (e.g. JBL's on a phone) while this one is open.
-        .task { headphones.send(.queryEqualizer) }
+        .task { headphones.send(headphones.model.equalizerQuery) }
     }
 }
