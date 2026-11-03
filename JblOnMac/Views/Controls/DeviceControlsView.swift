@@ -21,7 +21,7 @@ struct DeviceControlsView: View {
             SelectableRow(
                 systemImage: "ear.and.waveform",
                 title: "Ambient Sound Control",
-                subtitle: headphones.state.mode.map { String(localized: $0.title) },
+                subtitle: headphones.state.mode.map(modeDescription),
                 isActive: headphones.state.mode.map { $0 != .off } ?? false
             ) {
                 DisclosureChevron()
@@ -107,6 +107,13 @@ struct DeviceControlsView: View {
                 screen = .calls
             }
         }
+    }
+
+    /// Names a mode, followed by its strength (1...7) for the modes that have one.
+    private func modeDescription(_ mode: ListeningMode) -> String {
+        let title = String(localized: mode.title)
+        guard let level = headphones.state.level(for: mode) else { return title }
+        return String(localized: "\(title), level \(level)")
     }
 
     /// Describes a balance of -16 (left) ... 16 (right) in words.

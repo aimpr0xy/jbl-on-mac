@@ -22,4 +22,13 @@ struct DeviceState {
     var leftBattery: Int?
     var rightBattery: Int?
     var caseBattery: Int?
+
+    /// The strength of a mode (1...7), or nil if it has none or it isn't known yet.
+    func level(for mode: ListeningMode) -> Int? {
+        switch mode {
+        case .noiseCanceling: noiseCancelingLevel
+        case .ambientAware: ambientAwareLevel
+        case .off, .talkThru: nil
+        }
+    }
 }
