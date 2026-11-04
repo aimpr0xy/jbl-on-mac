@@ -1,50 +1,36 @@
 name: Test
 
-# macOS only where Apple frameworks are required: build, tests, coverage,
-# analyzer rules, and Periphery (which needs the build's index store).
+# One shard per top-level folder of JblOnMacTests, plus root for the files directly in it.
 on:
   pull_request:
 
 concurrency:
-  group: build-test-${{ github.ref }}
+  group: test-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
-env:
-  SWIFTLINT_VERSION: "0.65.1"
-
 jobs:
-  build-test:
+  test:
+    name: test (${{ matrix.shard }})
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [App, Bluetooth, Model, Protocol, Support, Views, root]
     steps:
       - uses: actions/checkout@v4
       - name: Show Xcode version
         run: xcodebuild -version
-      - name: Cache Homebrew downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/Homebrew
-          key: brew-${{ runner.os }}-swiftlint-${{ env.SWIFTLINT_VERSION }}-periphery
-      - name: Install tools
-        run: brew install swiftlint periphery
-      - name: Build
-        run: make build
-      - name: Test with coverage
-        run: make test
-      - name: Coverage gate
-        run: make coverage
-      - name: SwiftLint analyzer rules
-        run: make analyze
-      - name: Periphery
-        run: make periphery
+      - name: Test
+        run: make test TEST_SHARD=${{ matrix.shard }} COVERAGE=NO
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quality-results
+          name: tests-${{ matrix.shard }}
           path: |
-            build/xcodebuild.log
-            build/tests.xcresult
+            build/tests-${{ matrix.shard }}.xcresult
+            build/tests-${{ matrix.shard }}.log

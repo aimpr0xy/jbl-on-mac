@@ -14,7 +14,7 @@ env:
   SWIFTFORMAT_VERSION: "0.64.5"
 
 jobs:
-  swiftformat:
+  swift_format:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
