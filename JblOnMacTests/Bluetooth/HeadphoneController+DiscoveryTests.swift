@@ -1,5 +1,5 @@
-import Testing
 @testable import JblOnMac
+import Testing
 
 /// Dropping devices from the list once they stop turning up in inquiries.
 struct NearbyTrackerTests {
@@ -11,7 +11,7 @@ struct NearbyTrackerTests {
 
     @Test func keepsADeviceThatIsFoundEveryTime() {
         var tracker = NearbyTracker()
-        for _ in 0..<10 {
+        for _ in 0 ..< 10 {
             #expect(inquiry(&tracker, finding: ["A"]).isEmpty)
         }
     }
@@ -19,7 +19,7 @@ struct NearbyTrackerTests {
     @Test func toleratesMissedInquiriesUpToTheLimit() {
         var tracker = NearbyTracker()
         _ = inquiry(&tracker, finding: ["A"])
-        for _ in 0..<NearbyTracker.allowedMisses {
+        for _ in 0 ..< NearbyTracker.allowedMisses {
             #expect(inquiry(&tracker, finding: []).isEmpty)
         }
     }
@@ -27,7 +27,7 @@ struct NearbyTrackerTests {
     @Test func dropsADeviceOnceItMissedTooMany() {
         var tracker = NearbyTracker()
         _ = inquiry(&tracker, finding: ["A"])
-        for _ in 0..<NearbyTracker.allowedMisses {
+        for _ in 0 ..< NearbyTracker.allowedMisses {
             _ = inquiry(&tracker, finding: [])
         }
         #expect(inquiry(&tracker, finding: []) == ["A"])
@@ -40,7 +40,7 @@ struct NearbyTrackerTests {
         _ = inquiry(&tracker, finding: ["A"])
         _ = inquiry(&tracker, finding: [])
         _ = inquiry(&tracker, finding: ["A"])
-        for _ in 0..<NearbyTracker.allowedMisses {
+        for _ in 0 ..< NearbyTracker.allowedMisses {
             #expect(inquiry(&tracker, finding: []).isEmpty)
         }
     }
@@ -48,7 +48,7 @@ struct NearbyTrackerTests {
     @Test func devicesAreTrackedSeparately() {
         var tracker = NearbyTracker()
         _ = inquiry(&tracker, finding: ["A", "B"])
-        for _ in 0..<NearbyTracker.allowedMisses {
+        for _ in 0 ..< NearbyTracker.allowedMisses {
             _ = inquiry(&tracker, finding: ["B"])
         }
         #expect(inquiry(&tracker, finding: ["B"]) == ["A"])

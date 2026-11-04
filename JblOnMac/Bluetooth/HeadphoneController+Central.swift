@@ -1,21 +1,20 @@
-import AppKit
 import CoreBluetooth
 import Foundation
-import IOBluetooth
-import os
 
 extension HeadphoneController: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         log("didUpdateState \(central.state.rawValue)")
         isBluetoothOff = central.state == .poweredOff
         if central.state == .poweredOn {
-            if selectedDevice != nil { startScanning() }
+            if selectedDevice != nil {
+                startScanning()
+            }
         } else if selectedDevice != nil {
             status = central.state == .unauthorized ? .unauthorized : .bluetoothOff
         }
     }
 
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
+    func centralManager(_: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = peripheral.name
             ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String
@@ -37,7 +36,7 @@ extension HeadphoneController: CBCentralManagerDelegate {
         handle(.discovered(peripheral.identifier, match))
     }
 
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    func centralManager(_: CBCentralManager, didConnect peripheral: CBPeripheral) {
         log("didConnect \(peripheral.identifier.uuidString) name=\(peripheral.name ?? "nil")")
         // A link we already replaced or cancelled isn't the headphones' link to remember.
         if peripheral.identifier == self.peripheral?.identifier {
@@ -47,19 +46,24 @@ extension HeadphoneController: CBCentralManagerDelegate {
         handle(.didConnect(peripheral.identifier))
     }
 
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
+    func centralManager(_: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
-        log("didFailToConnect error=\(error.map { String(describing: $0) } ?? "nil")")
+        log("didFailToConnect error=\(describe(error))")
         cancelling[peripheral.identifier] = nil
-        if expectedDisconnects.remove(peripheral.identifier) != nil { return }
+        if expectedDisconnects.remove(peripheral.identifier) != nil {
+            return
+        }
         handle(.didFailToConnect(peripheral.identifier))
     }
 
-    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
+    func centralManager(_: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
-        log("didDisconnect error=\(error.map { String(describing: $0) } ?? "nil") expected=\(self.expectedDisconnects.contains(peripheral.identifier))")
+        let expected = expectedDisconnects.contains(peripheral.identifier)
+        log("didDisconnect error=\(describe(error)) expected=\(expected)")
         cancelling[peripheral.identifier] = nil
-        if expectedDisconnects.remove(peripheral.identifier) != nil { return }
+        if expectedDisconnects.remove(peripheral.identifier) != nil {
+            return
+        }
         handle(.didDisconnect(peripheral.identifier))
     }
 }

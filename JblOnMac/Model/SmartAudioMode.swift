@@ -8,7 +8,9 @@ enum SmartAudioMode: CaseIterable, Identifiable {
     case audio
     case video
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var payload: [UInt8] {
         switch self {

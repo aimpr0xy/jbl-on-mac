@@ -7,7 +7,9 @@ enum ListeningMode: String, CaseIterable, Identifiable {
     case ambientAware = "Ambient Aware"
     case talkThru = "Talk Thru"
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: LocalizedStringResource {
         switch self {

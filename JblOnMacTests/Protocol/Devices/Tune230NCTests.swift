@@ -1,5 +1,5 @@
-import Testing
 @testable import JblOnMac
+import Testing
 
 /// The Tune 230NC dialect. Every expected packet is copied from the PacketLogger capture of the
 /// JBL app talking to a Tune 230NC TWS.
@@ -7,17 +7,25 @@ struct Tune230NCTests {
     /// The captured write of the Club preset, chunk by chunk.
     static let clubUpload = [
         "AA 41 B3 03",
-        "00 04 00 C8 0D 2C 41 30 00 00 00 00 00 00 00 00 0A 00 00 00 01 00 00 00 00 00 80 40 00 00 00 42 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 80 42 00 00 80 3F 01 00 00 00 00 00 80 3F 00 00 FA 42 00 00 80 3F 01 00 00 00 00 00 20 40 00 00 7A 43",
-        "01 00 00 80 3F 01 00 00 00 00 00 C0 BF 00 00 FA 43 00 00 80 3F 01 00 00 00 00 00 C0 BF 00 00 7A 44 00 00 80 3F 01 00 00 00 00 00 00 00 00 00 FA 44 00 00 80 3F 01 00 00 00 00 00 80 3F 00 00 7A 45 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 FA",
+        "00 04 00 C8 0D 2C 41 30 00 00 00 00 00 00 00 00 0A 00 00 00 01 00 00 00 00 00 80 40 " +
+            "00 00 00 42 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 80 42 00 00 80 3F 01 00 00 00 " +
+            "00 00 80 3F 00 00 FA 42 00 00 80 3F 01 00 00 00 00 00 20 40 00 00 7A 43",
+        "01 00 00 80 3F 01 00 00 00 00 00 C0 BF 00 00 FA 43 00 00 80 3F 01 00 00 00 00 00 C0 " +
+            "BF 00 00 7A 44 00 00 80 3F 01 00 00 00 00 00 00 00 00 00 FA 44 00 00 80 3F 01 00 00 " +
+            "00 00 00 80 3F 00 00 7A 45 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 FA",
         "02 45 00 00 80 3F 01 00 00 00 00 00 80 40 00 00 7A 46 00 00 80 3F",
-        "AA 05 41",
+        "AA 05 41"
     ]
 
     /// The chunks of the captured equalizer download while Club was active, without `AA 43` and `AA 04 43`.
     static let clubDownload = [
-        "00 04 01 00 00 00 00 00 00 00 00 00 0A 00 00 00 01 00 00 00 00 00 80 40 00 00 00 42 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 80 42 00 00 80 3F 01 00 00 00 00 00 80 3F 00 00 FA 42 00 00 80 3F 01 00 00 00 00 00 20 40 00 00 7A 43 00 00 80 3F",
-        "01 01 00 00 00 00 00 C0 BF 00 00 FA 43 00 00 80 3F 01 00 00 00 00 00 C0 BF 00 00 7A 44 00 00 80 3F 01 00 00 00 00 00 00 00 00 00 FA 44 00 00 80 3F 01 00 00 00 00 00 80 3F 00 00 7A 45 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 FA 45 00 00 80",
-        "02 3F 01 00 00 00 00 00 80 40 00 00 7A 46 00 00 80 3F",
+        "00 04 01 00 00 00 00 00 00 00 00 00 0A 00 00 00 01 00 00 00 00 00 80 40 00 00 00 42 " +
+            "00 00 80 3F 01 00 00 00 00 00 00 40 00 00 80 42 00 00 80 3F 01 00 00 00 00 00 80 3F " +
+            "00 00 FA 42 00 00 80 3F 01 00 00 00 00 00 20 40 00 00 7A 43 00 00 80 3F",
+        "01 01 00 00 00 00 00 C0 BF 00 00 FA 43 00 00 80 3F 01 00 00 00 00 00 C0 BF 00 00 7A " +
+            "44 00 00 80 3F 01 00 00 00 00 00 00 00 00 00 FA 44 00 00 80 3F 01 00 00 00 00 00 80 " +
+            "3F 00 00 7A 45 00 00 80 3F 01 00 00 00 00 00 00 40 00 00 FA 45 00 00 80",
+        "02 3F 01 00 00 00 00 00 80 40 00 00 7A 46 00 00 80 3F"
     ]
 
     @Test func queries() {
@@ -43,14 +51,19 @@ struct Tune230NCTests {
     }
 
     @Test(arguments: [
-        (EarbudSide.left, GestureControl.volume, GestureControl.ambientSound, "AA 77 0B 00 06 08 07 05 08 06 0C A1 0E A1"),
+        (
+            EarbudSide.left,
+            GestureControl.volume,
+            GestureControl.ambientSound,
+            "AA 77 0B 00 06 08 07 05 08 06 0C A1 0E A1"
+        ),
         (.left, .ambientSound, .volume, "AA 77 0B 00 06 09 07 04 08 00 0C A1 0E A1"),
         (.left, .playback, .volume, "AA 77 0B 00 06 01 07 02 08 00 0C A1 0E A1"),
         (.left, .none, .volume, "AA 77 0B 00 06 00 07 00 08 00 0C 00 0E A1"),
         (.right, .ambientSound, .volume, "AA 77 0B 00 09 09 0A 04 0B 00 0E A1 0C A1"),
         (.right, .playback, .volume, "AA 77 0B 00 09 01 0A 02 0B 00 0E A1 0C A1"),
         (.right, .none, .volume, "AA 77 0B 00 09 00 0A 00 0B 00 0E 00 0C A1"),
-        (.right, .volume, .volume, "AA 77 0B 00 09 08 0A 05 0B 06 0E A1 0C A1"),
+        (.right, .volume, .volume, "AA 77 0B 00 09 08 0A 05 0B 06 0E A1 0C A1")
     ])
     func gestureWrites(side: EarbudSide, control: GestureControl, other: GestureControl, hex: String) {
         let command = JBLModel.tune230NC.gestureCommand(side, control, other: other)
@@ -70,21 +83,21 @@ struct Tune230NCTests {
         (.vocal, "04 00 00 00 00 00 30", [-1.5, -3, -3, 1, 3.5, 3.5, 3, 1.5, 0, -1.5]),
         (.bass, "04 00 E1 48 4F 41 30", [6, 3, 3, 2.5, 0.5, 0, 0, 0, 0, 0]),
         (.jazz, "04 00 00 00 00 00 30", [1, 0, 1, 0, 0, 0, -2, 2, 0, 3]),
-        (.studio, "04 00 00 00 00 00 30", [0, -2, -2, 0, 0, 0, 0, 0, 0, 0]),
+        (.studio, "04 00 00 00 00 00 30", [0, -2, -2, 0, 0, 0, 0, 0, 0, 0])
     ])
     func equalizerUploadPayload(preset: EqualizerPreset, header: String, gains: [Float]) {
         let packets = JBLCommand.equalizerUpload(preset)
         let payload = packets.compactMap { packet -> [UInt8]? in
             guard case .uploadChunk = packet else { return nil }
             return Array(packet.bytes.dropFirst())
-        }.flatMap { $0 }
+        }.flatMap(\.self)
         #expect(payload.count == 179)
         #expect(Array(payload.prefix(7)) == bytes(header))
         #expect(preset.tune230NCGains == gains)
     }
 
     @Test func decodesTheEqualizerDownload() {
-        let payload = Self.clubDownload.map { Array(bytes($0).dropFirst()) }.flatMap { $0 }
+        let payload = Self.clubDownload.map { Array(bytes($0).dropFirst()) }.flatMap(\.self)
         #expect(payload.count == 0xAF)
         #expect(JBLReply.equalizerGains(fromDownload: payload) == EqualizerPreset.club.tune230NCGains)
     }
@@ -106,8 +119,11 @@ struct Tune230NCTests {
         ("AA 98 02 02 00", [.voiceAware(enabled: false, level: nil)]),
         ("AA 98 02 02 02", [.voiceAware(enabled: true, level: .mid)]),
         ("AA 98 02 00 02", []),
-        ("AA 12 25 4A 42 4C 20 54 55 4E 45 32 33 30 4E 43 20 54 00 4B 20 00 32 90 7E E2 32 59 68 03 07 00 3C 32 5B 0F 04 00 01 00",
-         [.firmware("3.7.0")]),
+        (
+            "AA 12 25 4A 42 4C 20 54 55 4E 45 32 33 30 4E 43 20 54 00 4B 20 00 32 90 7E E2 32 " +
+                "59 68 03 07 00 3C 32 5B 0F 04 00 01 00",
+            [.firmware("3.7.0")]
+        ),
         ("AA 26 04 01 01 02 06", [.caseFirmware("1.2.6")]),
         ("AA 00 02 41 00", [.acknowledged(group: 0x41, status: 0)]),
         ("AA 43 AF 03", [.downloadStarted(length: 0xAF, chunks: 3)]),
@@ -116,7 +132,7 @@ struct Tune230NCTests {
         // A write echo carries the written side fully and only the other side's last slot.
         ("AA 77 0B 02 09 09 0A 04 0B 00 0E A1 0C A1", [.gestureControl(.right, .ambientSound)]),
         ("AA 77 11 02 06 08 07 05 08 06 0C A1 09 09 0A 04 0B 00 0E A1",
-         [.gestureControl(.left, .volume), .gestureControl(.right, .ambientSound)]),
+         [.gestureControl(.left, .volume), .gestureControl(.right, .ambientSound)])
     ]
 
     @Test(arguments: replies)

@@ -1,0 +1,3 @@
+# Tests may force-unwrap; production code may not (see CLAUDE.md).
+disabled_rules:
+  - force_unwrapping

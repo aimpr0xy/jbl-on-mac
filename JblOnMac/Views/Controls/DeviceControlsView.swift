@@ -16,119 +16,10 @@ struct DeviceControlsView: View {
 
             batteryRow
 
-            // Each row is blue while something other than Off is selected, gray when off or
-            // not yet reported.
-            SelectableRow(
-                systemImage: "ear.and.waveform",
-                title: "Ambient Sound Control",
-                subtitle: headphones.state.mode.map { String(localized: $0.title) },
-                isActive: headphones.state.mode.map { $0 != .off } ?? false
-            ) {
-                DisclosureChevron()
-            } action: {
-                screen = .ambientSound
-            }
-
-            // Only shown once the headphones report a smart audio and video state.
-            if let smart = headphones.state.smartMode {
-                SelectableRow(
-                    systemImage: "tv.and.mediabox",
-                    title: "Smart Audio & Video",
-                    subtitle: String(localized: smart.title),
-                    isActive: smart != .off
-                ) {
-                    DisclosureChevron()
-                } action: {
-                    screen = .smartAudio
-                }
-            }
-
-            // Only shown once the headphones report a spatial audio state, so models
-            // without the feature don't get a dead row.
-            if let spatial = headphones.state.spatialMode {
-                SelectableRow(
-                    systemImage: "person.spatialaudio.stereo.fill",
-                    title: "Spatial Audio",
-                    subtitle: String(localized: spatial.title),
-                    isActive: spatial != .off
-                ) {
-                    DisclosureChevron()
-                } action: {
-                    screen = .spatialAudio
-                }
-            }
-
-            SectionTitle("Sound")
-                .padding(.top, 8)
-            // Only shown once the headphones report a balance.
-            if let balance = headphones.state.balance {
-                SelectableRow(
-                    systemImage: "arrow.left.and.right",
-                    title: "Balance",
-                    subtitle: balanceDescription(balance),
-                    // Blue while the balance is off centre.
-                    isActive: balance != 0
-                ) {
-                    DisclosureChevron()
-                } action: {
-                    screen = .balance
-                }
-            }
-
-            SelectableRow(
-                systemImage: "slider.vertical.3",
-                title: "Equalizer",
-                subtitle: headphones.state.equalizer.map { String(localized: $0.title) },
-                // Blue while a preset is applied; gray when off or not yet reported.
-                isActive: headphones.state.equalizer.map { $0 != .off } ?? false
-            ) {
-                DisclosureChevron()
-            } action: {
-                screen = .equalizer
-            }
-
-            // Only shown once the headphones report a limiter state.
-            if let limiter = headphones.state.volumeLimiterEnabled {
-                SelectableRow(
-                    systemImage: "ear.badge.checkmark",
-                    title: "Safe Sound",
-                    isActive: limiter
-                ) {
-                    EmptyView()
-                } action: {
-                    headphones.setVolumeLimiter(!limiter)
-                }
-            }
-
-            // One row per earbud, shown once the headphones report its touch controls, so models
-            // without the feature don't get a dead row.
-            ForEach(EarbudSide.allCases) { side in
-                if let control = headphones.state.gestureControl(for: side) {
-                    SelectableRow(
-                        systemImage: "hand.tap",
-                        title: side.touchControlsTitle,
-                        subtitle: String(localized: control.title),
-                        isActive: control != .none
-                    ) {
-                        DisclosureChevron()
-                    } action: {
-                        screen = .gestures(side)
-                    }
-                }
-            }
-
-            // Only shown once the headphones report one of the call features.
-            if hasCallFeatures {
-                SelectableRow(
-                    systemImage: "phone",
-                    title: "Calls",
-                    isActive: false
-                ) {
-                    DisclosureChevron()
-                } action: {
-                    screen = .calls
-                }
-            }
+            audioRows
+            soundRows
+            touchControlRows
+            callsRow
 
             unsupportedNote
 
@@ -136,15 +27,145 @@ struct DeviceControlsView: View {
         }
     }
 
+    @ViewBuilder
+    private var audioRows: some View {
+        // Each row is blue while something other than Off is selected, gray when off or
+        // not yet reported.
+        SelectableRow(
+            systemImage: "ear.and.waveform",
+            title: "Ambient Sound Control",
+            subtitle: headphones.state.mode.map { String(localized: $0.title) },
+            isActive: headphones.state.mode.map { $0 != .off } ?? false
+        ) {
+            DisclosureChevron()
+        } action: {
+            screen = .ambientSound
+        }
+
+        // Only shown once the headphones report a smart audio and video state.
+        if let smart = headphones.state.smartMode {
+            SelectableRow(
+                systemImage: "tv.and.mediabox",
+                title: "Smart Audio & Video",
+                subtitle: String(localized: smart.title),
+                isActive: smart != .off
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .smartAudio
+            }
+        }
+
+        // Only shown once the headphones report a spatial audio state, so models
+        // without the feature don't get a dead row.
+        if let spatial = headphones.state.spatialMode {
+            SelectableRow(
+                systemImage: "person.spatialaudio.stereo.fill",
+                title: "Spatial Audio",
+                subtitle: String(localized: spatial.title),
+                isActive: spatial != .off
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .spatialAudio
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var soundRows: some View {
+        SectionTitle("Sound")
+            .padding(.top, 8)
+        // Only shown once the headphones report a balance.
+        if let balance = headphones.state.balance {
+            SelectableRow(
+                systemImage: "arrow.left.and.right",
+                title: "Balance",
+                subtitle: balanceDescription(balance),
+                // Blue while the balance is off centre.
+                isActive: balance != 0
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .balance
+            }
+        }
+
+        SelectableRow(
+            systemImage: "slider.vertical.3",
+            title: "Equalizer",
+            subtitle: headphones.state.equalizer.map { String(localized: $0.title) },
+            // Blue while a preset is applied; gray when off or not yet reported.
+            isActive: headphones.state.equalizer.map { $0 != .off } ?? false
+        ) {
+            DisclosureChevron()
+        } action: {
+            screen = .equalizer
+        }
+
+        // Only shown once the headphones report a limiter state.
+        if let limiter = headphones.state.volumeLimiterEnabled {
+            SelectableRow(
+                systemImage: "ear.badge.checkmark",
+                title: "Safe Sound",
+                isActive: limiter
+            ) {
+                EmptyView()
+            } action: {
+                headphones.setVolumeLimiter(!limiter)
+            }
+        }
+    }
+
+    private var touchControlRows: some View {
+        // One row per earbud, shown once the headphones report its touch controls, so models
+        // without the feature don't get a dead row.
+        ForEach(EarbudSide.allCases) { side in
+            if let control = headphones.state.gestureControl(for: side) {
+                SelectableRow(
+                    systemImage: "hand.tap",
+                    title: side.touchControlsTitle,
+                    subtitle: String(localized: control.title),
+                    isActive: control != .none
+                ) {
+                    DisclosureChevron()
+                } action: {
+                    screen = .gestures(side)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var callsRow: some View {
+        // Only shown once the headphones report one of the call features.
+        if hasCallFeatures {
+            SelectableRow(
+                systemImage: "phone",
+                title: "Calls",
+                isActive: false
+            ) {
+                DisclosureChevron()
+            } action: {
+                screen = .calls
+            }
+        }
+    }
+
     /// Models we haven't captured traffic from are read-only; ask for a log so they can be added.
     @ViewBuilder
     private var unsupportedNote: some View {
         if headphones.model == .unknown {
-            Text("This model isn't supported yet, so its settings can't be changed. Open an issue with a log on GitHub to get it added.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
+            Text(
+                """
+                This model isn't supported yet, so its settings can't be changed. \
+                Open an issue with a log on GitHub to get it added.
+                """
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
         }
     }
 
@@ -174,7 +195,9 @@ struct DeviceControlsView: View {
 
     /// Describes a balance of -16 (left) ... 16 (right) in words.
     private func balanceDescription(_ value: Int) -> String {
-        if value == 0 { return String(localized: "Centered") }
+        if value == 0 {
+            return String(localized: "Centered")
+        }
         return value < 0 ? String(localized: "Left \(-value)") : String(localized: "Right \(value)")
     }
 
@@ -182,10 +205,16 @@ struct DeviceControlsView: View {
     @ViewBuilder
     private var batteryRow: some View {
         // Each part has its own spoken label, so translators can word and order it freely.
-        let levels: [(symbol: String, percent: Int?, spoken: (Int) -> String)] = [
-            ("l.circle", headphones.state.leftBattery, { String(localized: "Left \($0) percent") }),
-            ("r.circle", headphones.state.rightBattery, { String(localized: "Right \($0) percent") }),
-            ("earbuds.case", headphones.state.caseBattery, { String(localized: "Case \($0) percent") }),
+        let levels = [
+            BatteryLevel(symbol: "l.circle", percent: headphones.state.leftBattery) {
+                String(localized: "Left \($0) percent")
+            },
+            BatteryLevel(symbol: "r.circle", percent: headphones.state.rightBattery) {
+                String(localized: "Right \($0) percent")
+            },
+            BatteryLevel(symbol: "earbuds.case", percent: headphones.state.caseBattery) {
+                String(localized: "Case \($0) percent")
+            }
         ]
         if levels.contains(where: { $0.percent != nil }) {
             HStack(spacing: 14) {
@@ -202,4 +231,11 @@ struct DeviceControlsView: View {
             .padding(.bottom, 8)
         }
     }
+}
+
+/// One battery reading and how it is spoken by VoiceOver.
+private struct BatteryLevel {
+    let symbol: String
+    let percent: Int?
+    let spoken: (Int) -> String
 }

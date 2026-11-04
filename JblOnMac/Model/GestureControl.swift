@@ -4,13 +4,8 @@ import Foundation
 enum EarbudSide: CaseIterable, Identifiable {
     case left, right
 
-    var id: Self { self }
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .left: "Left"
-        case .right: "Right"
-        }
+    var id: Self {
+        self
     }
 
     var touchControlsTitle: LocalizedStringResource {
@@ -20,7 +15,9 @@ enum EarbudSide: CaseIterable, Identifiable {
         }
     }
 
-    var opposite: EarbudSide { self == .left ? .right : .left }
+    var opposite: EarbudSide {
+        self == .left ? .right : .left
+    }
 
     /// The four gesture slots the headphones report and accept for this earbud, as seen in the
     /// JBL app's capture.
@@ -41,7 +38,9 @@ enum GestureControl: CaseIterable, Identifiable {
     case volume
     case playback
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var title: LocalizedStringResource {
         switch self {
@@ -76,7 +75,7 @@ enum GestureControl: CaseIterable, Identifiable {
     /// earbud's actions on both sides, so those are accepted for the right one as well.
     init?(actions: [UInt8], side: EarbudSide) {
         guard let match = Self.allCases.first(where: { $0.actions(for: side) == actions })
-                ?? Self.allCases.first(where: { $0.actions(for: .left) == actions }) else { return nil }
+            ?? Self.allCases.first(where: { $0.actions(for: .left) == actions }) else { return nil }
         self = match
     }
 }

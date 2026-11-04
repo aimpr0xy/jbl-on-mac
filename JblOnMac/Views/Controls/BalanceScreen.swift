@@ -22,7 +22,7 @@ struct BalanceScreen: View {
 
             HStack(spacing: 8) {
                 Text("L").foregroundStyle(.secondary)
-                Slider(value: binding, in: -16...16, step: 1)
+                Slider(value: binding, in: -16 ... 16, step: 1)
                 Text("R").foregroundStyle(.secondary)
             }
             .font(.caption)

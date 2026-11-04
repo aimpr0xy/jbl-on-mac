@@ -1,5 +1,3 @@
-import Foundation
-
 /// A packet sent to the headphones, as observed in the Packet Logger capture of the JBL app:
 ///   service characteristics  ...6F6D0002 (write)  /  ...6F6D0001 (notify)
 ///   ambient sound write      AA 91 07 10 | 01 <NC> | 02 <Ambient> | 03 <TalkThru>   (all 0 = off)
@@ -21,8 +19,10 @@ import Foundation
 ///     0D  voice aware             AA 06 06 00 00 00 0D 02 <00 off | 01 on> <1 low | 2 mid | 3 high>
 ///   equalizer write          AA A2 74 00 03 <preset> <headroom f32> 30 00*8 | 10 x (0A 01 <gain f32> <Hz f32>) | 0A
 ///                            (floats little-endian; the app writes to handle 0x002D, same as the others)
-///   equalizer query          AA A2 02 01 FF   (replies with the same frame as a write echo: AA A2 74 00 04 <preset> ...)
-///   touch controls write     AA 77 09 00 <slot> <action> x 4   (left slots 06 07 08 0C, right 09 0A 0B 0E; see GestureControl)
+///   equalizer query          AA A2 02 01 FF   (replies with the same frame as a write echo: AA A2 74 00 04 <preset>
+/// ...)
+///   touch controls write     AA 77 09 00 <slot> <action> x 4   (left slots 06 07 08 0C, right 09 0A 0B 0E; see
+/// GestureControl)
 ///   touch controls query     AA 77 02 01 FF   (both earbuds; FD left only, FE right only)
 ///
 /// The Tune 230NC (see `JBLModel`) shares the ambient sound commands (without levels) and the touch
@@ -40,7 +40,7 @@ import Foundation
 ///                            packet of it is acked with AA 01 02 43 00)
 /// Replies are decoded by `JBLReply`.
 enum JBLCommand: Equatable {
-    // Writes
+    /// Writes
     case setListeningMode(ListeningMode)
     /// Strength (1...7) of noise canceling or ambient aware; other modes have no level.
     case setLevel(ListeningMode, Int)
@@ -93,30 +93,30 @@ enum JBLCommand: Equatable {
 
     var bytes: [UInt8] {
         switch self {
-        case .setListeningMode(let mode):
+        case let .setListeningMode(mode):
             // At most one of the three flags is set to 1; Off clears all of them.
             let flags = ListeningMode.flagged.map { UInt8($0 == mode ? 1 : 0) }
             return [0xAA, 0x91, 0x07, 0x10, 0x01, flags[0], 0x02, flags[1], 0x03, flags[2]]
-        case .setLevel(let mode, let level):
+        case let .setLevel(mode, level):
             let id: UInt8 = mode == .noiseCanceling ? 0x04 : 0xA1
             return [0xAA, 0x91, 0x03, 0x20, id, UInt8(clamping: level)]
-        case .setSpatialAudio(let mode):
+        case let .setSpatialAudio(mode):
             return [0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0C, 0x02, 0x01, mode.rawValue]
-        case .setSmartAudio(let mode):
+        case let .setSmartAudio(mode):
             return [0xAA, 0x80, 0x09, 0x00] + mode.payload
-        case .setBalance(let value):
+        case let .setBalance(value):
             return [0xAA, 0xA8, 0x05, 0x00, 0x01, 0x01, 0x02, UInt8(clamping: 100 + value)]
-        case .setVolumeLimiter(let enabled):
+        case let .setVolumeLimiter(enabled):
             return [0xAA, 0x06, 0x05, 0x00, 0x00, 0x00, 0x20, 0x01, enabled ? 1 : 0]
-        case .setSoundLevelOptimizer(let enabled):
+        case let .setSoundLevelOptimizer(enabled):
             return [0xAA, 0x06, 0x05, 0x00, 0x00, 0x00, 0x23, 0x01, enabled ? 1 : 0]
-        case .setCallSound(let setting):
+        case let .setCallSound(setting):
             return [0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x14, 0x02, 0x01, setting.rawValue]
-        case .setCallVoice(let setting):
+        case let .setCallVoice(setting):
             return [0xAA, 0x06, 0x07, 0x00, 0x00, 0x00, 0x16, 0x03, 0xFF, 0xFF, setting.rawValue]
-        case .setVoiceAware(let enabled, let level):
+        case let .setVoiceAware(enabled, level):
             return [0xAA, 0x06, 0x06, 0x00, 0x00, 0x00, 0x0D, 0x02, enabled ? 1 : 0, level.rawValue]
-        case .setEqualizer(let preset):
+        case let .setEqualizer(preset):
             var packet: [UInt8] = [0xAA, 0xA2, 0x74, 0x00, 0x03, preset.rawValue]
             packet += Self.littleEndian(preset.headroom)
             packet += [0x30] + [UInt8](repeating: 0, count: 8)
@@ -124,27 +124,26 @@ enum JBLCommand: Equatable {
                 packet += [0x0A, 0x01] + Self.littleEndian(gain) + Self.littleEndian(frequency)
             }
             return packet + [0x0A]
-        case .setGestureControl(let side, let control):
+        case let .setGestureControl(side, control):
             // Slot and action alternate: `<slot> <action> <slot> <action> ...`.
             return [0xAA, 0x77, 0x09, 0x00] + zip(side.slots, control.actions(for: side)).flatMap { [$0, $1] }
-        case .setGestureControlWithOtherSide(let side, let control, let other):
+        case let .setGestureControlWithOtherSide(side, control, other):
             // Both earbuds use the left one's actions on this model, also for ambient sound control.
             let pairs = zip(side.slots, control.actions(for: .left)).flatMap { [$0, $1] }
             let otherSlot = [side.opposite.slots[3], other.actions(for: .left)[3]]
             return [0xAA, 0x77, 0x0B, 0x00] + pairs + otherSlot
-        case .startUpload(let length, let chunks):
+        case let .startUpload(length, chunks):
             return [0xAA, 0x41, UInt8(clamping: length), UInt8(clamping: chunks)]
-        case .uploadChunk(let index, let payload):
+        case let .uploadChunk(index, payload):
             return [UInt8(clamping: index)] + payload
         case .finishUpload:
             return [0xAA, 0x05, 0x41]
         case .acknowledgeDownload:
             return [0xAA, 0x01, 0x02, 0x43, 0x00]
-        case .setTune230NCSmartAudio(let mode):
+        case let .setTune230NCSmartAudio(mode):
             return [0xAA, 0x81, 0x08] + mode.payload
-        case .setTune230NCVoiceAware(let level):
+        case let .setTune230NCVoiceAware(level):
             return [0xAA, 0x98, 0x02, 0x00, level?.rawValue ?? 0]
-
         case .queryListeningMode: return [0xAA, 0x91, 0x01, 0x11]
         case .queryLevels: return [0xAA, 0x91, 0x01, 0x21]
         case .queryEarbudBattery: return [0xAA, 0x06, 0x05, 0x00, 0x01, 0x00, 0x1A, 0x00, 0x1B]
@@ -154,7 +153,7 @@ enum JBLCommand: Equatable {
         case .queryBalance: return [0xAA, 0xA8, 0x01, 0x01]
         case .queryEqualizer: return [0xAA, 0xA2, 0x02, 0x01, 0xFF]
         case .queryVolumeLimiter: return Self.featureQuery(id: 0x20)
-        case .queryCallFeature(let id): return Self.featureQuery(id: id)
+        case let .queryCallFeature(id): return Self.featureQuery(id: id)
         case .queryGestureControls: return [0xAA, 0x77, 0x02, 0x01, 0xFF]
         case .queryBatteryLevels: return [0xAA, 0x25, 0x01, 0x00]
         case .queryEqualizerCurve: return [0xAA, 0x42, 0x01, 0x01]
@@ -169,27 +168,27 @@ enum JBLCommand: Equatable {
     /// can be restored if the write fails. Nil for queries and for writes that have no query.
     var refreshQuery: JBLCommand? {
         switch self {
-        case .setListeningMode: return .queryListeningMode
-        case .setLevel: return .queryLevels
-        case .setSpatialAudio: return .querySpatialAudio
-        case .setSmartAudio: return .querySmartAudio
-        case .setBalance: return .queryBalance
-        case .setVolumeLimiter: return .queryVolumeLimiter
-        case .setSoundLevelOptimizer: return .queryCallFeature(id: 0x23)
-        case .setCallSound: return .queryCallFeature(id: 0x14)
-        case .setCallVoice: return .queryCallFeature(id: 0x16)
-        case .setVoiceAware: return .queryCallFeature(id: 0x0D)
-        case .setEqualizer: return .queryEqualizer
-        case .setGestureControl, .setGestureControlWithOtherSide: return .queryGestureControls
-        case .startUpload, .uploadChunk, .finishUpload: return .queryEqualizerCurve
-        case .setTune230NCSmartAudio: return .queryTune230NCSmartAudio
-        case .setTune230NCVoiceAware: return .queryTune230NCVoiceAware
+        case .setListeningMode: .queryListeningMode
+        case .setLevel: .queryLevels
+        case .setSpatialAudio: .querySpatialAudio
+        case .setSmartAudio: .querySmartAudio
+        case .setBalance: .queryBalance
+        case .setVolumeLimiter: .queryVolumeLimiter
+        case .setSoundLevelOptimizer: .queryCallFeature(id: 0x23)
+        case .setCallSound: .queryCallFeature(id: 0x14)
+        case .setCallVoice: .queryCallFeature(id: 0x16)
+        case .setVoiceAware: .queryCallFeature(id: 0x0D)
+        case .setEqualizer: .queryEqualizer
+        case .setGestureControl, .setGestureControlWithOtherSide: .queryGestureControls
+        case .startUpload, .uploadChunk, .finishUpload: .queryEqualizerCurve
+        case .setTune230NCSmartAudio: .queryTune230NCSmartAudio
+        case .setTune230NCVoiceAware: .queryTune230NCVoiceAware
         case .acknowledgeDownload, .queryListeningMode, .queryLevels, .queryEarbudBattery,
              .queryCaseBattery, .querySmartAudio, .querySpatialAudio, .queryBalance,
              .queryEqualizer, .queryVolumeLimiter, .queryCallFeature, .queryGestureControls,
              .queryBatteryLevels, .queryEqualizerCurve, .queryTune230NCSmartAudio,
              .queryTune230NCVoiceAware, .queryStatus, .queryCaseFirmware:
-            return nil
+            nil
         }
     }
 
@@ -202,7 +201,7 @@ enum JBLCommand: Equatable {
             payload += [0x01, 0x00, 0x00, 0x00] + littleEndian(gain) + littleEndian(frequency) + littleEndian(1)
         }
         let chunks = stride(from: 0, to: payload.count, by: uploadChunkSize).map {
-            Array(payload[$0..<min($0 + uploadChunkSize, payload.count)])
+            Array(payload[$0 ..< min($0 + uploadChunkSize, payload.count)])
         }
         return [.startUpload(length: payload.count, chunks: chunks.count)]
             + chunks.enumerated().map { .uploadChunk(index: $0.offset, $0.element) }

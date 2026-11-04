@@ -1,15 +1,12 @@
-import AppKit
 import CoreBluetooth
-import Foundation
-import IOBluetooth
 import os
 
 extension HeadphoneController: CBPeripheralDelegate {
     /// Once notifications are on, ask the headphones for their current state.
     func peripheral(_ peripheral: CBPeripheral,
-                    didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard peripheral.identifier == self.peripheral?.identifier else { return }
-        guard characteristic.uuid == JBLUUID.notify, characteristic.isNotifying else { return }
+                    didUpdateNotificationStateFor characteristic: CBCharacteristic, error _: Error?) {
+        guard peripheral.identifier == self.peripheral?.identifier, characteristic.uuid == JBLUUID.notify,
+              characteristic.isNotifying else { return }
         for query in model.initialQueries {
             send(query)
         }
@@ -17,13 +14,12 @@ extension HeadphoneController: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral,
                     didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard peripheral.identifier == self.peripheral?.identifier else { return }
-        guard characteristic.uuid == writeUUID else { return }
+        guard peripheral.identifier == self.peripheral?.identifier, characteristic.uuid == writeUUID else { return }
         writeCompleted(error: error)
     }
 
     func peripheral(_ peripheral: CBPeripheral,
-                    didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+                    didUpdateValueFor characteristic: CBCharacteristic, error _: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
         if characteristic.service?.uuid == DeviceInfo.service {
             guard let data = characteristic.value else { return }
@@ -45,64 +41,56 @@ extension HeadphoneController: CBPeripheralDelegate {
         }
     }
 
-    /// Copies a decoded reply into the observable state.
+    /// Copies a decoded reply into the observable state, or reacts to it.
     func apply(_ reply: JBLReply) {
+        if state.apply(reply) {
+            return
+        }
         switch reply {
-        case .listeningMode(let mode): state.mode = mode
-        case .noiseCancelingLevel(let level): state.noiseCancelingLevel = level
-        case .ambientAwareLevel(let level): state.ambientAwareLevel = level
-        case .spatialAudio(let mode): state.spatialMode = mode
-        case .smartAudio(let mode): state.smartMode = mode
-        case .balance(let value): state.balance = value
-        case .volumeLimiter(let enabled): state.volumeLimiterEnabled = enabled
-        case .equalizer(let preset): state.equalizer = preset
-        case .gestureControl(let side, let control):
-            if side == .left { state.leftGestureControl = control } else { state.rightGestureControl = control }
-        case .soundLevelOptimizer(let enabled): state.soundLevelOptimizerEnabled = enabled
-        case .callSound(let setting): state.callSoundSetting = setting
-        case .callVoice(let setting): state.callVoiceSetting = setting
-        case .voiceAware(let enabled, let level):
-            state.voiceAwareEnabled = enabled
-            state.voiceAwareLevel = level
-        case .battery(let part, let percent):
-            switch part {
-            case .left: state.leftBattery = percent
-            case .right: state.rightBattery = percent
-            case .chargingCase: state.caseBattery = percent
-            }
-        case .acknowledged(let group, let status):
-            guard group == 0x41 else { break }
-            if status == 0 {
-                uploadPacketAcknowledged()
-            } else {
-                // Rejected: stop the upload and show what the headphones actually use.
-                log("equalizer upload rejected with status \(status)", level: .error)
-                uploadRemaining = nil
-                queuedEqualizer = nil
-                send(.queryEqualizerCurve)
-            }
-        case .firmware(let version):
+        case let .acknowledged(group, status):
+            acknowledged(group: group, status: status)
+        case let .firmware(version):
             state.info.firmware = version
             savedDeviceInfo = state.info
-        case .caseFirmware(let version):
+        case let .caseFirmware(version):
             state.info.caseFirmware = version
             savedDeviceInfo = state.info
         case .downloadStarted:
             downloadBuffer = []
             send(.acknowledgeDownload)
         case .downloadFinished:
-            // Nil for a curve that isn't one of the presets, such as a custom one.
-            if let buffer = downloadBuffer, let gains = JBLReply.equalizerGains(fromDownload: buffer) {
-                state.equalizer = model.equalizerPresets.first { $0.tune230NCGains == gains }
-            }
-            downloadBuffer = nil
-            send(.acknowledgeDownload)
+            finishDownload()
+        default:
+            break // Stored values were applied by `DeviceState.apply(_:)` above.
         }
+    }
+
+    private func acknowledged(group: UInt8, status: UInt8) {
+        guard group == 0x41 else { return }
+        if status == 0 {
+            uploadPacketAcknowledged()
+        } else {
+            // Rejected: stop the upload and show what the headphones actually use.
+            log("equalizer upload rejected with status \(status)", level: .error)
+            uploadRemaining = nil
+            queuedEqualizer = nil
+            send(.queryEqualizerCurve)
+        }
+    }
+
+    private func finishDownload() {
+        // Nil for a curve that isn't one of the presets, such as a custom one.
+        if let buffer = downloadBuffer, let gains = JBLReply.equalizerGains(fromDownload: buffer) {
+            state.equalizer = model.equalizerPresets.first { $0.tune230NCGains == gains }
+        }
+        downloadBuffer = nil
+        send(.acknowledgeDownload)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
-        log("didDiscoverServices \((peripheral.services ?? []).map { $0.uuid.uuidString }) error=\(error.map { String(describing: $0) } ?? "nil")")
+        let services = (peripheral.services ?? []).map(\.uuid.uuidString)
+        log("didDiscoverServices \(services) error=\(describe(error))")
         // A device can have several LE links (the Tune 230NC has one that only does pairing). Forget
         // one without the JBL service so the next attempt looks for the right one.
         if !(peripheral.services ?? []).contains(where: { $0.uuid == JBLUUID.service }) {
@@ -121,7 +109,8 @@ extension HeadphoneController: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier else { return }
-        log("didDiscoverCharacteristics service=\(service.uuid.uuidString) \((service.characteristics ?? []).map { $0.uuid.uuidString }) error=\(error.map { String(describing: $0) } ?? "nil")")
+        let characteristics = (service.characteristics ?? []).map(\.uuid.uuidString)
+        log("didDiscoverCharacteristics service=\(service.uuid.uuidString) \(characteristics) error=\(describe(error))")
         // Read the model, firmware and so on, so they show up in every following log line.
         if service.uuid == DeviceInfo.service {
             for characteristic in service.characteristics ?? [] {

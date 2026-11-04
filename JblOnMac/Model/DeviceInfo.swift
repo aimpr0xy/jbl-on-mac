@@ -23,13 +23,13 @@ struct DeviceInfo: Codable, Equatable {
 
     /// Decodes a characteristic value. They are UTF-8 strings, sometimes padded with NUL bytes.
     static func string(from data: Data) -> String {
-        String(decoding: data, as: UTF8.self)
+        (String(bytes: data, encoding: .utf8) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\0")))
     }
 
     /// Short form for log lines, or nil if no firmware version has been read yet.
     var logDescription: String? {
-        let parts = [firmware.map { "firmware=\($0)" }, caseFirmware.map { "case_firmware=\($0)" }].compactMap { $0 }
+        let parts = [firmware.map { "firmware=\($0)" }, caseFirmware.map { "case_firmware=\($0)" }].compactMap(\.self)
         return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 }
