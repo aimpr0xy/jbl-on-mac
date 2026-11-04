@@ -60,6 +60,49 @@ enum JBLModel: Equatable {
         }
     }
 
+    /// The command that selects a smart audio and video mode.
+    func smartAudioCommand(_ mode: SmartAudioMode) -> JBLCommand {
+        self == .tune230NC ? .setTune230NCSmartAudio(mode) : .setSmartAudio(mode)
+    }
+
+    /// The command that switches voice aware on at a level, or off (the Tune 230NC has no level
+    /// to keep when it is off).
+    func voiceAwareCommand(enabled: Bool, level: VoiceAwareLevel) -> JBLCommand {
+        switch self {
+        case .tuneBeam2, .unknown: .setVoiceAware(enabled: enabled, level: level)
+        case .tune230NC: .setTune230NCVoiceAware(enabled ? level : nil)
+        }
+    }
+
+    /// The packets that set a preset. More than one means a chunked transfer: each packet is sent
+    /// once the headphones acked the previous one.
+    func equalizerCommands(_ preset: EqualizerPreset) -> [JBLCommand] {
+        switch self {
+        case .tuneBeam2, .unknown: [.setEqualizer(preset)]
+        case .tune230NC: JBLCommand.equalizerUpload(preset)
+        }
+    }
+
+    /// Whether a remembered LE identifier can be connected to directly. The Tune 230NC's LE side
+    /// changes its private address every few minutes and isn't bonded with the Mac, so a
+    /// remembered identifier soon points at an address nobody answers on.
+    var remembersLEIdentifier: Bool {
+        self != .tune230NC
+    }
+
+    /// How Fast Pair service data in an advertisement identifies this model, if it does. Any
+    /// other Fast Pair device sends `00 00` too, so that only counts as a fallback; a link without
+    /// the JBL service is dropped and forgotten when its services are listed.
+    func advertisementMatch(serviceData: [UInt8]) -> ConnectionStateMachine.NameMatch? {
+        guard self == .tune230NC else { return nil }
+        if serviceData.prefix(3).elementsEqual(JBLUUID.tune230NCFastPairModel) {
+            return .exact
+        } else if serviceData == JBLUUID.tune230NCIdleFastPairData {
+            return .fallback
+        }
+        return nil
+    }
+
     /// The command that sets one earbud's touch controls. The Tune 230NC also wants the other
     /// earbud's last slot, so its current control is passed along (`.none` until reported).
     func gestureCommand(_ side: EarbudSide, _ control: GestureControl,

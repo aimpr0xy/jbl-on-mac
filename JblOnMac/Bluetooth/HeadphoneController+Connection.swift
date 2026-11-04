@@ -15,9 +15,7 @@ extension HeadphoneController {
         }
         // Scanning doesn't deliver any results on some Macs, but connecting to a peripheral
         // by its remembered identifier does work, so keep retrying that.
-        // The Tune 230NC's LE side changes its private address every few minutes and isn't bonded
-        // with the Mac, so a remembered identifier soon points at an address nobody answers on.
-        if model != .tune230NC, let id = rememberedIdentifier,
+        if model.remembersLEIdentifier, let id = rememberedIdentifier,
            let match = central.retrievePeripherals(withIdentifiers: [id]).first {
             log("connecting to remembered peripheral \(id.uuidString)")
             known[id] = match

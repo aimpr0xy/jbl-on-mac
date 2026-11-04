@@ -39,7 +39,7 @@ extension HeadphoneController {
     /// Sends the smart audio and video command for the given mode.
     func select(_ smart: SmartAudioMode) {
         guard canSend else { return }
-        send(model == .tune230NC ? .setTune230NCSmartAudio(smart) : .setSmartAudio(smart))
+        send(model.smartAudioCommand(smart))
         state.smartMode = smart
     }
 
@@ -56,21 +56,22 @@ extension HeadphoneController {
     func select(_ preset: EqualizerPreset) {
         guard canSend else { return }
         state.equalizer = preset
-        if model == .tune230NC {
+        let packets = model.equalizerCommands(preset)
+        if packets.count > 1 {
             upload(preset)
         } else {
-            send(.setEqualizer(preset))
+            packets.forEach { send($0) }
         }
     }
 
-    /// Tune 230NC: starts the chunked write of a preset, or queues it behind the running one so
-    /// two uploads don't interleave.
+    /// Starts the chunked write of a preset, or queues it behind the running one so two uploads
+    /// don't interleave.
     private func upload(_ preset: EqualizerPreset) {
         guard uploadRemaining == nil else {
             queuedEqualizer = preset
             return
         }
-        var packets = JBLCommand.equalizerUpload(preset)
+        var packets = model.equalizerCommands(preset)
         send(packets.removeFirst())
         uploadRemaining = packets
     }
@@ -143,10 +144,6 @@ extension HeadphoneController {
         guard canSend else { return }
         state.voiceAwareEnabled = enabled
         state.voiceAwareLevel = level
-        if model == .tune230NC {
-            send(.setTune230NCVoiceAware(enabled ? level : nil))
-        } else {
-            send(.setVoiceAware(enabled: enabled, level: level))
-        }
+        send(model.voiceAwareCommand(enabled: enabled, level: level))
     }
 }
