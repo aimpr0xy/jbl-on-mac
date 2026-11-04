@@ -8,7 +8,7 @@ func bytes(_ hex: String) -> [UInt8] {
 }
 
 /// A notification and what it should decode to.
-struct ReplyCase: CustomTestStringConvertible {
+nonisolated struct ReplyCase: Sendable, CustomTestStringConvertible {
     let name: String
     let hex: String
     let replies: [JBLReply]

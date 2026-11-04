@@ -43,11 +43,3 @@ Split functions and types instead of fighting the limits.
   Report the problem instead. Do not edit `.swiftlint.yml`, `.swiftformat`, `.periphery.*`,
   `Makefile`, or `.github/workflows/` unless the user asked for that change.
 - Do not use the Combine framework; use async/await.
-
-## Known gate failures (as of the gates being introduced)
-
-- Strict concurrency (`SWIFT_STRICT_CONCURRENCY=complete`) and warnings-as-errors are not enabled yet.
-  The app target is clean, but the test target has about 67 diagnostics because it lacks the app's
-  `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`.
-
-Do not hide these. Do not make them worse.

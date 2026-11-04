@@ -108,7 +108,7 @@ struct Tune230NCTests {
         #expect(JBLReply.equalizerGains(fromDownload: payload) == nil)
     }
 
-    static let replies: [(String, [JBLReply])] = [
+    nonisolated static let replies: [(String, [JBLReply])] = [
         // Captured while the JBL app showed left 60%, right 50% and the case at 2%.
         ("AA 25 0D 01 00 00 3C 32 00 02 5B 0F 0A 0F 54 00",
          [.battery(.left, percent: 60), .battery(.right, percent: 50), .battery(.chargingCase, percent: 2)]),
