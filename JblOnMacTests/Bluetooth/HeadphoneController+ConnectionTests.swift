@@ -50,15 +50,14 @@ extension ControllerSuite {
 
         @Test func deselectingTheLinkDropsEverythingInFlight() {
             ControllerFixture.withController { controller in
-                controller.pendingWrites = [.setBalance(1)]
-                controller.uploadRemaining = [.queryBalance]
-                controller.queuedEqualizer = .club
-                controller.downloadBuffer = [0x01]
+                controller.run(.send(.setBalance(1)))
+                controller.run(.uploadEqualizer(.club))
+                controller.run(.uploadEqualizer(.vocal))
+                controller.run(.notified(bytes("AA 43 AF 03")))
+                #expect(controller.transferTimer != nil)
                 controller.disconnect()
-                #expect(controller.pendingWrites.isEmpty)
-                #expect(controller.uploadRemaining == nil)
-                #expect(controller.queuedEqualizer == nil)
-                #expect(controller.downloadBuffer == nil)
+                #expect(controller.pipeline == CommandPipeline())
+                #expect(controller.transferTimer == nil)
                 #expect(controller.machine.current == nil)
                 #expect(controller.machine.phase == .idle)
             }

@@ -55,16 +55,10 @@ final class HeadphoneController: NSObject {
     @ObservationIgnored var central: CBCentralManager!
     @ObservationIgnored var peripheral: CBPeripheral?
     @ObservationIgnored var writeCharacteristic: CBCharacteristic?
-    /// Commands written but not yet acknowledged, oldest first; write-with-response results
-    /// arrive in order, and the callback doesn't say which command it is for.
-    @ObservationIgnored var pendingWrites: [JBLCommand] = []
-    /// Tune 230NC: packets of the equalizer upload still to send, each after the previous one is
-    /// acked. Nil while no upload is running.
-    @ObservationIgnored var uploadRemaining: [JBLCommand]?
-    /// Tune 230NC: a preset picked while an upload was running, sent once it finishes.
-    @ObservationIgnored var queuedEqualizer: EqualizerPreset?
-    /// Tune 230NC: bytes of the chunked reply being received. Nil while none is.
-    @ObservationIgnored var downloadBuffer: [UInt8]?
+    /// Decides what to write and how to react to replies; this class carries out its actions.
+    @ObservationIgnored var pipeline = CommandPipeline()
+    /// The timeout of an equalizer upload or download.
+    @ObservationIgnored var transferTimer: Task<Void, Never>?
 
     @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
     @ObservationIgnored var isDiscovering = false
@@ -145,32 +139,8 @@ final class HeadphoneController: NSObject {
 
     /// Writes a command to the headphones; does nothing until the BLE link is ready.
     func send(_ command: JBLCommand) {
-        guard let peripheral, let writeCharacteristic else { return }
-        pendingWrites.append(command)
-        let bytes = command.bytes
-        log(
-            "sent \(String(describing: command)): \(bytes.map { String(format: "%02X", $0) }.joined(separator: " "))",
-            level: .debug
-        )
-        peripheral.writeValue(Data(bytes), for: writeCharacteristic, type: .withResponse)
-    }
-
-    /// Called when the headphones confirm or reject the oldest outstanding write. The UI is
-    /// updated optimistically, so a failed write must be undone: ask the headphones for the real
-    /// state.
-    func writeCompleted(error: Error?) {
-        guard !pendingWrites.isEmpty else { return }
-        let command = pendingWrites.removeFirst()
-        guard let error else { return }
-        log("write failed for \(String(describing: command)): \(error.localizedDescription)", level: .error)
-        // The rest of an upload is useless once one of its packets is lost.
-        if command.refreshQuery == .queryEqualizerCurve {
-            uploadRemaining = nil
-            queuedEqualizer = nil
-        }
-        if let query = command.refreshQuery {
-            send(query)
-        }
+        guard peripheral != nil, writeCharacteristic != nil else { return }
+        run(.send(command))
     }
 
     // periphery:ignore - IOBluetooth calls this by selector, so there is no Swift reference to it.

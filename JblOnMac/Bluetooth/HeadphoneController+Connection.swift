@@ -81,10 +81,7 @@ extension HeadphoneController {
         if machine.current == nil {
             peripheral = nil
             writeCharacteristic = nil
-            pendingWrites.removeAll()
-            uploadRemaining = nil
-            queuedEqualizer = nil
-            downloadBuffer = nil
+            run(.linkDropped)
         }
     }
 
@@ -113,7 +110,7 @@ extension HeadphoneController {
         guard central.state == .poweredOn, let target = known[id] else { return }
         if peripheral?.identifier != id {
             writeCharacteristic = nil
-            pendingWrites.removeAll()
+            run(.linkDropped)
         }
         peripheral = target
         target.delegate = self

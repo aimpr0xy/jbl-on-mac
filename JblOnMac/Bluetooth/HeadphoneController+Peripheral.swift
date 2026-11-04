@@ -15,7 +15,7 @@ extension HeadphoneController: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral,
                     didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier, characteristic.uuid == writeUUID else { return }
-        writeCompleted(error: error)
+        run(.writeCompleted(error: error?.localizedDescription))
     }
 
     func peripheral(_ peripheral: CBPeripheral,
@@ -30,15 +30,7 @@ extension HeadphoneController: CBPeripheralDelegate {
             return
         }
         guard characteristic.uuid == JBLUUID.notify, let bytes = characteristic.value.map([UInt8].init) else { return }
-        // Chunks of a Tune 230NC download are raw `<index> <bytes…>`, not frames. Each is acked.
-        if downloadBuffer != nil, let index = bytes.first, index != 0xAA {
-            downloadBuffer?.append(contentsOf: bytes.dropFirst())
-            send(.acknowledgeDownload)
-            return
-        }
-        for reply in JBLReply.decode(bytes) {
-            apply(reply)
-        }
+        run(.notified(bytes))
     }
 
     /// Copies a decoded reply into the observable state, or reacts to it.
@@ -47,44 +39,15 @@ extension HeadphoneController: CBPeripheralDelegate {
             return
         }
         switch reply {
-        case let .acknowledged(group, status):
-            acknowledged(group: group, status: status)
         case let .firmware(version):
             state.info.firmware = version
             savedDeviceInfo = state.info
         case let .caseFirmware(version):
             state.info.caseFirmware = version
             savedDeviceInfo = state.info
-        case .downloadStarted:
-            downloadBuffer = []
-            send(.acknowledgeDownload)
-        case .downloadFinished:
-            finishDownload()
         default:
             break // Stored values were applied by `DeviceState.apply(_:)` above.
         }
-    }
-
-    private func acknowledged(group: UInt8, status: UInt8) {
-        guard group == 0x41 else { return }
-        if status == 0 {
-            uploadPacketAcknowledged()
-        } else {
-            // Rejected: stop the upload and show what the headphones actually use.
-            log("equalizer upload rejected with status \(status)", level: .error)
-            uploadRemaining = nil
-            queuedEqualizer = nil
-            send(.queryEqualizerCurve)
-        }
-    }
-
-    private func finishDownload() {
-        // Nil for a curve that isn't one of the presets, such as a custom one.
-        if let buffer = downloadBuffer, let gains = JBLReply.equalizerGains(fromDownload: buffer) {
-            state.equalizer = model.equalizerPresets.first { $0.tune230NCGains == gains }
-        }
-        downloadBuffer = nil
-        send(.acknowledgeDownload)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
