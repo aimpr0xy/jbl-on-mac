@@ -18,7 +18,7 @@ env:
 jobs:
   build-test:
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Show Xcode version
@@ -47,4 +47,5 @@ jobs:
           name: quality-results
           path: |
             build/xcodebuild.log
+            build/tests.log
             build/tests.xcresult

@@ -23,8 +23,11 @@ build:
 
 test:
 	rm -rf $(RESULT)
-	xcodebuild test $(XCODEBUILD) -scheme JblOnMacTests -enableCodeCoverage YES \
-		-resultBundlePath $(RESULT) $(SIGNING)
+	mkdir -p build
+	set -o pipefail; xcodebuild test $(XCODEBUILD) -scheme JblOnMacTests -enableCodeCoverage YES \
+		-test-timeouts-enabled YES -default-test-execution-time-allowance 60 \
+		-maximum-test-execution-time-allowance 120 \
+		-resultBundlePath $(RESULT) $(SIGNING) | tee build/tests.log
 
 coverage:
 	swift Tools/CoverageGate.swift $(RESULT)
