@@ -2,11 +2,8 @@
 import SwiftUI
 import Testing
 
-/// ContentView starts a Bluetooth inquiry that keeps calling its controller, so the controllers
-/// must outlive the test.
-@MainActor
-private var keptAlive: [HeadphoneController] = []
-
+/// Lays out `PopoverScreens`, not `ContentView`: its discovery calls into IOBluetooth, which
+/// blocks on a Mac without Bluetooth, such as a CI runner.
 @MainActor
 struct ContentViewTests {
     private let device = JBLDevice(name: "JBL Tune 230NC TWS", address: "AA:BB", isConnected: true)
@@ -14,8 +11,7 @@ struct ContentViewTests {
     private func size(_ configure: (HeadphoneController) -> Void) -> CGSize {
         let controller = HeadphoneController()
         configure(controller)
-        keptAlive.append(controller)
-        return ViewHost.size(of: ContentView(headphones: controller))
+        return ViewHost.size(of: PopoverScreens(headphones: controller))
     }
 
     @Test func usesThePopoverWidth() {
@@ -37,7 +33,7 @@ struct ContentViewTests {
 
     @Test func selectedDeviceThatIsNotConnectedYetShowsTheList() {
         let list = size { $0.devices = [device] }
-        for status in [HeadphoneController.Status.idle, .scanning, .connecting, .bluetoothOff] {
+        for status in [HeadphoneController.Status.idle, .scanning, .connecting] {
             let pending = size {
                 $0.devices = [device]
                 $0.selectedDevice = device
@@ -45,6 +41,21 @@ struct ContentViewTests {
             }
             #expect(pending.height == list.height)
         }
+    }
+
+    @Test func selectedDeviceWithBluetoothOffShowsTheList() {
+        let controls = size {
+            $0.devices = [device]
+            $0.selectedDevice = device
+            $0.status = .connected
+        }
+        // The row grows by a "Bluetooth is off" subtitle, but the controls don't open.
+        let pending = size {
+            $0.devices = [device]
+            $0.selectedDevice = device
+            $0.status = .bluetoothOff
+        }
+        #expect(pending.height < controls.height)
     }
 
     @Test func connectedStatusWithoutADeviceShowsTheList() {

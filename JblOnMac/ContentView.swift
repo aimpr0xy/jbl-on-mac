@@ -1,8 +1,25 @@
 import SwiftUI
 
-/// Styled after the Bluetooth and Sound menus in Control Center: a bold header, circular
-/// icon badges that fill with the accent color when active.
+/// The popover: its screens, and Bluetooth discovery while it is open.
 struct ContentView: View {
+    let headphones: HeadphoneController
+
+    var body: some View {
+        PopoverScreens(headphones: headphones)
+            .task {
+                // Show the paired devices right away; after that the list only changes when an
+                // inquiry for nearby JBL products completes.
+                headphones.refreshDevices()
+                headphones.startDiscovery()
+            }
+            .onDisappear { headphones.stopDiscovery() }
+    }
+}
+
+/// Styled after the Bluetooth and Sound menus in Control Center: a bold header, circular
+/// icon badges that fill with the accent color when active. Kept apart from the discovery in
+/// `ContentView`, whose IOBluetooth calls block on a Mac without Bluetooth, so tests can lay it out.
+struct PopoverScreens: View {
     let headphones: HeadphoneController
     /// Which screen of a connected device is showing.
     @State private var screen: Screen = .controls
@@ -24,13 +41,6 @@ struct ContentView: View {
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
         .frame(width: 280)
-        .task {
-            // Show the paired devices right away; after that the list only changes when an inquiry
-            // for nearby JBL products completes.
-            headphones.refreshDevices()
-            headphones.startDiscovery()
-        }
-        .onDisappear { headphones.stopDiscovery() }
     }
 
     /// The screen of the connected device that is currently showing. Controls slide in from the
