@@ -6,6 +6,12 @@ import Testing
 extension ControllerSuite {
     @MainActor
     struct CentralTests {
+        @Test func theControllerIsTheCentralManagersDelegate() {
+            ControllerFixture.withController { controller in
+                #expect(controller.central.delegate === controller)
+            }
+        }
+
         @Test func bluetoothStateUpdatesAreReflectedInTheStatus() {
             ControllerFixture.withController { controller in
                 let state = controller.central.state
