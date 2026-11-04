@@ -47,6 +47,18 @@ The README's [compatibility list](README.md#compatibility) only includes the JBL
    - The result for each feature: ✅ works or ❌ doesn't work
    - For anything that's ❌, what happened, plus the app logs from `log stream` while you tried it
 
+To collect the app's logs, run this in Terminal while you try each feature, then paste the output into a [New device](../../issues/new/choose) issue:
+
+```sh
+log stream --level debug --predicate 'subsystem == "JblOnMac"'
+```
+
+Or, afterwards, print the last 10 minutes:
+
+```sh
+log show --last 10m --info --debug --predicate 'subsystem == "JblOnMac"'
+```
+
 Logs that contain `discovered name=…` and the raw notification bytes are especially helpful, because they show how your device's packets differ from the Tune Beam 2's.
 
 ## Reverse engineering the protocol

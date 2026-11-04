@@ -1,0 +1,48 @@
+name: New device
+description: Report a JBL model that isn't supported yet, or test one that is
+labels: ["device"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing your headphones. See
+        [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md#reporting-device-compatibility) for the full workflow.
+
+        To get the diagnostics: connect your device in the app, try each feature, then run
+        `log show --last 10m --info --debug --predicate 'subsystem == "JblOnMac"'` in Terminal.
+        Paste the result below.
+
+  - type: input
+    id: device
+    attributes:
+      label: Device name and firmware
+      description: The exact name the app shows, plus the firmware version if the JBL app displays one.
+      placeholder: JBL Tune Beam 2, firmware 1.2.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: Results per feature
+      description: For each feature, write works or doesn't work, and what happened if it didn't.
+      placeholder: |
+        - Noise canceling: works
+        - Equalizer: doesn't work, headphones didn't respond
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Output of `log show --last 10m --info --debug --predicate 'subsystem == "JblOnMac"'`.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots from the official JBL app, PacketLogger captures, or links.
