@@ -11,5 +11,7 @@ enum JBLUUID {
     static let fastPairService = CBUUID(string: "FE2C")
     static let tune230NCFastPairModel: [UInt8] = [0x96, 0xC1, 0x2E]
     static let tune230NCIdleFastPairData: [UInt8] = [0x00, 0x00]
+    /// The Generic Access service, which every connected Bluetooth LE device exposes.
+    static let genericAccess = CBUUID(string: "1800")
     static let notify = CBUUID(string: "65786365-6C70-6F69-6E74-2E636F6D0001")
 }

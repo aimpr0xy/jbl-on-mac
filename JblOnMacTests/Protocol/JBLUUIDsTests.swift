@@ -15,4 +15,9 @@ struct JBLUUIDsTests {
         #expect(JBLUUID.tune230NCFastPairModel == [0x96, 0xC1, 0x2E])
         #expect(JBLUUID.tune230NCIdleFastPairData == [0x00, 0x00])
     }
+
+    @Test func genericAccessIsTheStandard1800Service() {
+        #expect(JBLUUID.genericAccess == CBUUID(string: "1800"))
+        #expect(JBLUUID.genericAccess.uuidString == "1800")
+    }
 }

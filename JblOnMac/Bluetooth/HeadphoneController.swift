@@ -62,9 +62,9 @@ final class HeadphoneController: NSObject {
 
     @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
     @ObservationIgnored var isDiscovering = false
-    /// The wait between one inquiry and the next; cancelled when discovery stops.
     /// Whether the device lookup was running when a connect started and should come back after it.
     @ObservationIgnored var resumeDiscoveryAfterConnect = false
+    /// The wait between one inquiry and the next; cancelled when discovery stops.
     @ObservationIgnored var inquiryPause: Task<Void, Never>?
     @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
     @ObservationIgnored var nearbyTracker = NearbyTracker()
