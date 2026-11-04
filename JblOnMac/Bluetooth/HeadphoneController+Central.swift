@@ -22,14 +22,8 @@ extension HeadphoneController: CBCentralManagerDelegate {
         let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data]
         let fastPair = serviceData?[JBLUUID.fastPairService].map { Array($0) }
         var match = nameMatch(for: name)
-        if model == .tune230NC, match != .exact, let fastPair {
-            // Any other Fast Pair device sends `00 00` too, so that only counts as a fallback; a
-            // link without the JBL service is dropped and forgotten when its services are listed.
-            if fastPair.prefix(3).elementsEqual(JBLUUID.tune230NCFastPairModel) {
-                match = .exact
-            } else if fastPair == JBLUUID.tune230NCIdleFastPairData {
-                match = .fallback
-            }
+        if match != .exact, let fastPair, let advertised = model.advertisementMatch(serviceData: fastPair) {
+            match = advertised
         }
         guard match != .none else { return }
         known[peripheral.identifier] = peripheral
