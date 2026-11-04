@@ -63,7 +63,7 @@ log stream --level debug --predicate 'subsystem == "JblOnMac"'
 ## Project structure
 
 | Folder | Contents |
-| --- | --- | --- |
+| --- | --- |
 | `JblOnMac/App` | App entry point and the `MenuBarExtra` scene |
 | `JblOnMac/Bluetooth` | `HeadphoneController`: classic Bluetooth discovery and pairing (IOBluetooth), plus the BLE connection (CoreBluetooth) |
 | `JblOnMac/Protocol` | The JBL BLE protocol: characteristic UUIDs, the commands we send (`JBLCommand`), and how replies are decoded (`JBLReply`) |
