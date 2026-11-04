@@ -1,0 +1,39 @@
+name: CodeQL
+
+# Only GitHub Actions workflows are scanned. CodeQL can't trace builds with Xcode 27 and doesn't
+# support Swift 6.4 on any platform, so a Swift scan fails at build time. Add Swift back (manual
+# build with `make build`, since the autobuilder can't read the JSON project.xcproj) once CodeQL
+# supports it: https://github.blog/changelog/2026-10-19-codeql-changes-for-macos-27-xcode-27-and-swift-6-4/
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (actions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: actions
+          build-mode: none
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:actions
