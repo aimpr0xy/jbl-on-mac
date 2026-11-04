@@ -45,46 +45,39 @@ struct PopoverScreens: View {
 
     /// The screen of the connected device that is currently showing. Controls slide in from the
     /// left and every other screen from the right.
-    @ViewBuilder
     private var connectedScreen: some View {
+        screenContent
+            .transition(.move(edge: screen == .controls ? .leading : .trailing).combined(with: .opacity))
+    }
+
+    @ViewBuilder
+    private var screenContent: some View {
         if let device = headphones.selectedDevice {
             switch screen {
             case .controls:
                 DeviceControlsView(headphones: headphones, device: device, screen: $screen)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
             case .ambientSound:
                 AmbientSoundScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .smartAudio:
                 SmartAudioScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .spatialAudio:
                 SpatialAudioScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case let .level(mode):
                 LevelScreen(headphones: headphones, mode: mode, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .balance:
                 BalanceScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .equalizer:
                 EqualizerScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case let .gestures(side):
                 GesturesScreen(headphones: headphones, side: side, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .calls:
                 CallFeaturesScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .callSound:
                 CallSoundScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .callVoice:
                 CallVoiceScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .voiceAware:
                 VoiceAwareScreen(headphones: headphones, screen: $screen)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
     }

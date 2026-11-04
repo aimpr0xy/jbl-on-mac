@@ -24,7 +24,7 @@ extension HeadphoneController {
         }
         // The headphones may already hold a BLE link to the system (e.g. via the audio
         // connection), in which case they don't advertise and a scan would never find them.
-        let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [CBUUID(string: "1800")])
+        let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [JBLUUID.genericAccess])
         let alreadyConnectedNames = alreadyConnected.map { $0.name ?? "nil" }
         log(
             "already connected: \(alreadyConnectedNames), target=\(selectedDevice?.name ?? "nil"), "
@@ -146,9 +146,8 @@ extension HeadphoneController {
 
     private func startTimer(_ timer: ConnectionStateMachine.Timer, _ duration: Duration) {
         timers[timer]?.cancel()
-        timers[timer] = Task { [weak self] in
-            do { try await Task.sleep(for: duration) } catch { return }
-            guard let self, !Task.isCancelled else { return }
+        timers[timer] = Task.afterDelay(duration) { [weak self] in
+            guard let self else { return }
             timers[timer] = nil
             if timer == .watchdog {
                 log("watchdog: attempt timed out")

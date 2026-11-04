@@ -44,9 +44,8 @@ extension HeadphoneController {
 
     private func startTransferTimer(_ duration: Duration) {
         transferTimer?.cancel()
-        transferTimer = Task { [weak self] in
-            do { try await Task.sleep(for: duration) } catch { return }
-            guard let self, !Task.isCancelled else { return }
+        transferTimer = Task.afterDelay(duration) { [weak self] in
+            guard let self else { return }
             transferTimer = nil
             run(.timerFired)
         }
