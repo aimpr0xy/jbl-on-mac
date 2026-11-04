@@ -12,7 +12,7 @@ struct TuneBeam2Tests {
         }
     }
 
-    static let writes: [Case] = [
+    nonisolated static let writes: [Case] = [
         Case(command: .setListeningMode(.off), hex: "AA 91 07 10 01 00 02 00 03 00"),
         Case(command: .setListeningMode(.noiseCanceling), hex: "AA 91 07 10 01 01 02 00 03 00"),
         Case(command: .setListeningMode(.ambientAware), hex: "AA 91 07 10 01 00 02 01 03 00"),
@@ -47,7 +47,7 @@ struct TuneBeam2Tests {
         Case(command: .setGestureControl(.right, .none), hex: "AA 77 09 00 09 00 0A 00 0B 00 0E 00")
     ]
 
-    static let queries: [Case] = [
+    nonisolated static let queries: [Case] = [
         Case(command: .queryListeningMode, hex: "AA 91 01 11"),
         Case(command: .queryLevels, hex: "AA 91 01 21"),
         Case(command: .queryEarbudBattery, hex: "AA 06 05 00 01 00 1A 00 1B"),
@@ -98,7 +98,7 @@ struct TuneBeam2Tests {
 
     // MARK: - Replies
 
-    static let decoded: [ReplyCase] = [
+    nonisolated static let decoded: [ReplyCase] = [
         ReplyCase(name: "equalizer", hex: equalizerFrame(preset: "03"), replies: [.equalizer(.bass)]),
         ReplyCase(name: "earbud batteries",
                   hex: "AA 06 0B 00 02 00 1A 02 00 50 00 1B 02 00 4B",
@@ -160,7 +160,7 @@ struct TuneBeam2Tests {
     ]
 
     /// Packets that must decode to nothing: unknown ids or values, or cut short.
-    static let ignored: [ReplyCase] = [
+    nonisolated static let ignored: [ReplyCase] = [
         ReplyCase(name: "unknown feature id", hex: "AA 06 05 00 02 00 7F 01 01", replies: []),
         ReplyCase(name: "unknown equalizer preset", hex: equalizerFrame(preset: "FF"), replies: []),
         ReplyCase(name: "smart audio with unknown payload", hex: "AA 80 09 02 01 02 03 04 05 06 07 08", replies: []),
@@ -176,7 +176,7 @@ struct TuneBeam2Tests {
     ]
 
     /// A full-length equalizer reply: `AA A2 74 00 04 <preset>` padded to the 120 bytes its length byte promises.
-    static func equalizerFrame(preset: String) -> String {
+    nonisolated static func equalizerFrame(preset: String) -> String {
         "AA A2 74 00 04 \(preset)" + String(repeating: " 00", count: 114)
     }
 
