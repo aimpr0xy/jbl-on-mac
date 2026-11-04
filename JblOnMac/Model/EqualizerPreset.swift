@@ -12,7 +12,9 @@ enum EqualizerPreset: UInt8, CaseIterable, Identifiable {
     case vocal = 2
     case jazz = 6
 
-    var id: UInt8 { rawValue }
+    var id: UInt8 {
+        rawValue
+    }
 
     /// Band centre frequencies in Hz, shared by every preset.
     static let frequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
@@ -58,11 +60,11 @@ enum EqualizerPreset: UInt8, CaseIterable, Identifiable {
     var headroom: Float {
         switch self {
         case .off, .studio: 0
-        case .bass: Float(bitPattern: 0x40ECEDE7)
-        case .jazz: Float(bitPattern: 0x4065B853)
-        case .club: Float(bitPattern: 0x40C44ADB)
-        case .vocal: Float(bitPattern: 0x40D32A08)
-        case .extremeBass: Float(bitPattern: 0x410758D1)
+        case .bass: Float(bitPattern: 0x40EC_EDE7)
+        case .jazz: Float(bitPattern: 0x4065_B853)
+        case .club: Float(bitPattern: 0x40C4_4ADB)
+        case .vocal: Float(bitPattern: 0x40D3_2A08)
+        case .extremeBass: Float(bitPattern: 0x4107_58D1)
         }
     }
 
@@ -85,8 +87,8 @@ enum EqualizerPreset: UInt8, CaseIterable, Identifiable {
     var tune230NCHeadroom: Float {
         switch self {
         case .off, .studio, .vocal, .jazz: 0
-        case .bass: Float(bitPattern: 0x414F48E1)
-        case .club: Float(bitPattern: 0x412C0DC8)
+        case .bass: Float(bitPattern: 0x414F_48E1)
+        case .club: Float(bitPattern: 0x412C_0DC8)
         case .extremeBass: headroom
         }
     }

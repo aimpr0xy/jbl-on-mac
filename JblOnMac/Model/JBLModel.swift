@@ -25,7 +25,9 @@ enum JBLModel: Equatable {
     }
 
     /// Whether commands that change a setting may be sent.
-    var allowsWrites: Bool { self != .unknown }
+    var allowsWrites: Bool {
+        self != .unknown
+    }
 
     /// Everything asked for once notifications are on.
     var initialQueries: [JBLCommand] {

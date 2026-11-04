@@ -1,0 +1,12 @@
+{
+  "file_targets": {
+    "JblOnMac": ["JblOnMac/**/*.swift"],
+    "JblOnMacTests": ["JblOnMacTests/**/*.swift"]
+  },
+  "indexstores": ["build/Index.noindex/DataStore"],
+  "plists": [],
+  "xibs": [],
+  "xcdatamodels": [],
+  "xcmappingmodels": [],
+  "test_targets": ["JblOnMacTests"]
+}

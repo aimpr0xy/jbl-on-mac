@@ -83,77 +83,98 @@ struct ConnectionStateMachine {
 
     mutating func handle(_ event: Event) -> [Action] {
         switch event {
-        case .selected:
-            isSelected = true
+        case .selected, .deselected:
+            select(event == .selected)
+        case let .attempt(lookup):
+            attempt(lookup)
+        case let .discovered(id, match):
+            discovered(id, match)
+        case let .didConnect(id):
+            didConnect(id)
+        case let .didFailToConnect(id), let .didDisconnect(id):
+            linkLost(id, failed: event == .didFailToConnect(id))
+        case let .linkReady(id):
+            linkReady(id)
+        case let .timerFired(timer):
+            timerFired(timer)
+        }
+    }
+
+    private mutating func select(_ selected: Bool) -> [Action] {
+        isSelected = selected
+        if selected {
             failedAttempts = 0
             return [.beginAttempt]
+        }
+        phase = .idle
+        return dropLink()
+    }
 
-        case .deselected:
-            isSelected = false
-            phase = .idle
-            return dropLink()
+    private mutating func attempt(_ lookup: Lookup) -> [Action] {
+        guard isSelected else { return [] }
+        switch lookup {
+        case let .remembered(id):
+            // The identifier may be stale (the headphones can change their LE address), so
+            // after a couple of failures also scan for a new one.
+            return (failedAttempts >= 2 ? [.scan] : []) + connect(to: id)
+        case let .alreadyConnected(id):
+            return connect(to: id)
+        case .none:
+            phase = .scanning
+            return [.cancelTimer(.retry), .scan, .startTimer(.watchdog, Self.watchdogDuration)]
+        }
+    }
 
-        case .attempt(let lookup):
-            guard isSelected else { return [] }
-            switch lookup {
-            case .remembered(let id):
-                // The identifier may be stale (the headphones can change their LE address), so
-                // after a couple of failures also scan for a new one.
-                return (failedAttempts >= 2 ? [.scan] : []) + connect(to: id)
-            case .alreadyConnected(let id):
-                return connect(to: id)
-            case .none:
-                phase = .scanning
-                return [.cancelTimer(.retry), .scan, .startTimer(.watchdog, Self.watchdogDuration)]
-            }
+    private mutating func discovered(_ id: UUID, _ match: NameMatch) -> [Action] {
+        guard isSelected else { return [] }
+        switch match {
+        case .none:
+            return []
+        case .exact:
+            fallback = nil
+            return [.cancelTimer(.fallback), .stopScan] + connect(to: id)
+        case .fallback:
+            guard fallback == nil else { return [] }
+            fallback = id
+            return [.startTimer(.fallback, Self.fallbackDelay)]
+        }
+    }
 
-        case .discovered(let id, let match):
-            guard isSelected else { return [] }
-            switch match {
-            case .none:
-                return []
-            case .exact:
-                fallback = nil
-                return [.cancelTimer(.fallback), .stopScan] + connect(to: id)
-            case .fallback:
-                guard fallback == nil else { return [] }
-                fallback = id
-                return [.startTimer(.fallback, Self.fallbackDelay)]
-            }
+    private func didConnect(_ id: UUID) -> [Action] {
+        guard id == current else { return [] }
+        return [.discoverServices(id)]
+    }
 
-        case .didConnect(let id):
-            guard id == current else { return [] }
-            return [.discoverServices(id)]
-
-        case .didFailToConnect(let id):
-            guard id == current else { return [] }
+    /// The attempt failed (`failed`) or an established link dropped. Both lead to a retry, but only
+    /// a failed attempt counts toward giving up.
+    private mutating func linkLost(_ id: UUID, failed: Bool) -> [Action] {
+        guard id == current else { return [] }
+        if failed {
             failedAttempts += 1
-            current = nil
-            return [.cancelTimer(.watchdog)] + retry()
+        }
+        current = nil
+        return [.cancelTimer(.watchdog)] + retry()
+    }
 
-        case .didDisconnect(let id):
-            guard id == current else { return [] }
-            current = nil
-            return [.cancelTimer(.watchdog)] + retry()
+    private mutating func linkReady(_ id: UUID) -> [Action] {
+        guard id == current else { return [] }
+        // Only now does the attempt count as a success; a link that connects but never shows
+        // its services should still count toward giving up.
+        failedAttempts = 0
+        phase = .connected
+        return [.cancelTimer(.watchdog)]
+    }
 
-        case .linkReady(let id):
-            guard id == current else { return [] }
-            // Only now does the attempt count as a success; a link that connects but never shows
-            // its services should still count toward giving up.
-            failedAttempts = 0
-            phase = .connected
-            return [.cancelTimer(.watchdog)]
-
-        case .timerFired(.watchdog):
+    private mutating func timerFired(_ timer: Timer) -> [Action] {
+        switch timer {
+        case .watchdog:
             guard isSelected, phase != .connected else { return [] }
             failedAttempts += 1
             return dropLink() + retry()
-
-        case .timerFired(.retry):
+        case .retry:
             guard isSelected, current == nil else { return [] }
             return [.beginAttempt]
-
-        case .timerFired(.fallback):
+        case .fallback:
             guard isSelected, current == nil, let id = fallback else { return [] }
             fallback = nil
             return [.stopScan] + connect(to: id)
@@ -162,9 +183,13 @@ struct ConnectionStateMachine {
 
     /// Starts connecting to a peripheral, replacing a different one that was still in progress.
     private mutating func connect(to id: UUID) -> [Action] {
-        if id == current { return [] }
+        if id == current {
+            return []
+        }
         var actions: [Action] = []
-        if let previous = current { actions.append(.cancel(previous)) }
+        if let previous = current {
+            actions.append(.cancel(previous))
+        }
         current = id
         fallback = nil
         phase = .connecting
@@ -174,7 +199,9 @@ struct ConnectionStateMachine {
     /// Stops scanning and cancels the current link and every timer.
     private mutating func dropLink() -> [Action] {
         var actions: [Action] = [.stopScan]
-        if let id = current { actions.append(.cancel(id)) }
+        if let id = current {
+            actions.append(.cancel(id))
+        }
         current = nil
         fallback = nil
         return actions + [.cancelTimer(.watchdog), .cancelTimer(.retry), .cancelTimer(.fallback)]

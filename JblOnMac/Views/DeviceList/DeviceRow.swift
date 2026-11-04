@@ -37,8 +37,8 @@ struct DeviceRow: View {
             }
         }
         .disabled(!isSupported
-                  || (headphones.connectingAddress != nil && !isPairing)
-                  || (headphones.selectedDevice != nil && !isOpening))
+            || (headphones.connectingAddress != nil && !isPairing)
+            || (headphones.selectedDevice != nil && !isOpening))
         .help(isSupported ? "" : String(localized: "This product isn't supported yet"))
     }
 

@@ -1,0 +1,9 @@
+# Dead code detection.
+# Periphery cannot read this project's .xcproj format, so it runs in generic
+# mode against the index store produced by the xcodebuild test run
+# (see .periphery.json and scripts/check.sh).
+generic_project_config: .periphery.json
+retain_public: false
+disable_update_check: true
+strict: true
+format: xcode

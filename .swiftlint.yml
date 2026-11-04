@@ -1,0 +1,42 @@
+# Quality gates. Do not loosen these to make a build pass; see CLAUDE.md.
+
+included:
+  - JblOnMac
+  - JblOnMacTests
+
+opt_in_rules:
+  - force_unwrapping
+  - empty_count
+  - closure_body_length
+  - sorted_imports
+
+# Analyzer rules need a compiler log, so they only run via `swiftlint analyze`
+# (see scripts/check.sh).
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+cyclomatic_complexity:
+  warning: 8
+  error: 10
+
+function_body_length:
+  warning: 40
+  error: 60
+
+type_body_length:
+  warning: 250
+  error: 400
+
+file_length:
+  warning: 400
+  error: 600
+
+function_parameter_count:
+  warning: 4
+  error: 6
+
+nesting:
+  type_level: 2
+  function_level: 3
+

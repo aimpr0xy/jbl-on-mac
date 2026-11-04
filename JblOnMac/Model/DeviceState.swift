@@ -1,5 +1,3 @@
-import Foundation
-
 /// Everything the headphones have reported (or that was set optimistically) for the selected
 /// device. Every value is nil until known. Replacing it with `DeviceState()` resets all of it,
 /// so a new field can't be forgotten when switching devices.

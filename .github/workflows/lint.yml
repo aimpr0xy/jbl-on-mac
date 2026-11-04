@@ -1,0 +1,24 @@
+name: Lint
+
+# Linux: no Apple frameworks needed. Complexity, length and style rules run here;
+# the analyzer rules need a compiler log and run in test.yml.
+on:
+  pull_request:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swiftlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/realm/swiftlint:0.65.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: SwiftLint
+        run: swiftlint lint --strict --reporter github-actions-logging

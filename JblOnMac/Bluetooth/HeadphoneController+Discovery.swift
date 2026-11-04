@@ -1,5 +1,3 @@
-import AppKit
-import CoreBluetooth
 import Foundation
 import IOBluetooth
 import os
@@ -24,7 +22,9 @@ struct NearbyTracker {
         // Inquiries that ran since the one that last found each device.
         let gone = lastSeen.filter { inquiry - $0.value > Self.allowedMisses }.map(\.key)
         inquiry += 1
-        for address in gone { lastSeen[address] = nil }
+        for address in gone {
+            lastSeen[address] = nil
+        }
         return gone
     }
 }
@@ -70,7 +70,9 @@ extension HeadphoneController {
         let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
         var byAddress: [String: IOBluetoothDevice] = nearby
         for device in paired {
-            if let address = device.addressString { byAddress[address] = device }
+            if let address = device.addressString {
+                byAddress[address] = device
+            }
         }
         devices = byAddress.values
             .compactMap { device -> JBLDevice? in
@@ -135,22 +137,24 @@ extension HeadphoneController {
 }
 
 extension HeadphoneController: IOBluetoothDeviceInquiryDelegate {
-    func deviceInquiryDeviceFound(_ sender: IOBluetoothDeviceInquiry!, device: IOBluetoothDevice!) {
+    func deviceInquiryDeviceFound(_: IOBluetoothDeviceInquiry!, device: IOBluetoothDevice!) {
         if let address = device.addressString {
             nearby[address] = device
             nearbyTracker.saw(address)
         }
     }
 
-    func deviceInquiryDeviceNameUpdated(_ sender: IOBluetoothDeviceInquiry!,
-                                        device: IOBluetoothDevice!, devicesRemaining: UInt32) {
+    func deviceInquiryDeviceNameUpdated(_: IOBluetoothDeviceInquiry!,
+                                        device _: IOBluetoothDevice!, devicesRemaining _: UInt32) {
         // The list is rebuilt once the inquiry completes, with the names it found.
     }
 
-    func deviceInquiryComplete(_ sender: IOBluetoothDeviceInquiry!, error: IOReturn, aborted: Bool) {
+    func deviceInquiryComplete(_: IOBluetoothDeviceInquiry!, error _: IOReturn, aborted: Bool) {
         // An inquiry that was stopped early didn't look for everyone, so it says nothing about who left.
         if !aborted {
-            for address in nearbyTracker.inquiryCompleted() { nearby[address] = nil }
+            for address in nearbyTracker.inquiryCompleted() {
+                nearby[address] = nil
+            }
             refreshDevices()
         }
         // Keep scanning while the popup is open, after a short pause so the spinner goes away
@@ -158,9 +162,9 @@ extension HeadphoneController: IOBluetoothDeviceInquiryDelegate {
         guard isDiscovering else { return }
         inquiryPause = Task { [weak self] in
             do { try await Task.sleep(for: Self.pauseBetweenInquiries) } catch { return }
-            guard let self, self.isDiscovering else { return }
-            self.inquiryPause = nil
-            self.runInquiry()
+            guard let self, isDiscovering else { return }
+            inquiryPause = nil
+            runInquiry()
         }
     }
 }

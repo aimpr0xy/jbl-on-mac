@@ -27,13 +27,13 @@ struct LevelScreen: View {
         let binding = Binding<Double>(
             get: {
                 Double((mode == .noiseCanceling ? headphones.state.noiseCancelingLevel
-                                                : headphones.state.ambientAwareLevel) ?? 4)
+                        : headphones.state.ambientAwareLevel) ?? 4)
             },
             set: { headphones.setLevel(Int($0), for: mode) }
         )
         return HStack(spacing: 8) {
             Image(systemName: "speaker.wave.1").foregroundStyle(.secondary)
-            Slider(value: binding, in: 1...7, step: 1)
+            Slider(value: binding, in: 1 ... 7, step: 1)
             Image(systemName: "speaker.wave.3").foregroundStyle(.secondary)
         }
         .font(.caption)
