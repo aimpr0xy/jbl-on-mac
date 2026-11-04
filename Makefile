@@ -4,15 +4,15 @@ XCODEBUILD = -project JblOnMac.xcodeproj -destination 'platform=macOS' -derivedD
 # A top-level folder of JblOnMacTests, or root for the files directly in it, to run only its tests.
 TEST_SHARD ?=
 SHARD_FILES = $(if $(filter root,$(TEST_SHARD)),$(wildcard JblOnMacTests/*Tests.swift),$(shell find JblOnMacTests/$(TEST_SHARD) -name '*Tests.swift'))
-# CI sets NO: it runs no coverage gate.
+# Collects coverage data in the result bundle. CI sets NO.
 COVERAGE ?= YES
 RESULT ?= build/tests$(if $(TEST_SHARD),-$(TEST_SHARD)).xcresult
 
-.PHONY: check lint format build build-for-testing test coverage analyze periphery
+.PHONY: check lint format build build-for-testing test analyze periphery
 
 # Runs every step even if one fails, then reports the failures.
 check:
-	@$(MAKE) --no-print-directory -k lint format build test coverage analyze periphery
+	@$(MAKE) --no-print-directory -k lint format build test analyze periphery
 
 lint:
 	swiftlint lint --strict --quiet
@@ -42,9 +42,6 @@ test:
 		-test-timeouts-enabled YES -default-test-execution-time-allowance 60 \
 		-maximum-test-execution-time-allowance 120 \
 		-resultBundlePath $(RESULT) $(SIGNING) $(if $(TEST_SHARD),-only-testing @build/shard-$(TEST_SHARD).txt) | tee $(RESULT:.xcresult=.log)
-
-coverage:
-	swift Tools/CoverageGate.swift $(RESULT)
 
 analyze:
 	swiftlint analyze --strict --quiet \

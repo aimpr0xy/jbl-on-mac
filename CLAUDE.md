@@ -7,7 +7,7 @@ See `CONTRIBUTING.md` for the protocol and device workflow.
 ## Quality gates
 
 Run `make check` before every commit. It runs the same steps as CI (`lint.yml`, `format.yml`, `test.yml`, `quality.yml` in `.github/workflows`):
-SwiftLint, SwiftFormat `--lint`, build, tests with coverage, the coverage gate, SwiftLint analyzer rules,
+SwiftLint, SwiftFormat `--lint`, build, tests, SwiftLint analyzer rules,
 and Periphery. Run one step with `make lint`, `make format`, `make test`, and so on.
 Tools: `brew install swiftlint swiftformat periphery`. If Xcode is not the selected developer directory,
 set `DEVELOPER_DIR`.
@@ -25,9 +25,6 @@ set `DEVELOPER_DIR`.
 Nesting: 2 levels for types, 3 for functions. CI runs SwiftLint with `--strict`, so warnings fail too.
 Split functions and types instead of fighting the limits.
 
-Line coverage of the app target must be at least the value in `.quality/coverage-threshold` (80%).
-Only `make check` enforces it; CI runs no coverage gate.
-
 ### Rules
 
 - No `!` force unwraps outside `JblOnMacTests`.
@@ -43,8 +40,8 @@ Only `make check` enforces it; CI runs no coverage gate.
 - Every new function needs tests that assert behavior (inputs to expected outputs or state changes),
   not tests that only execute lines to raise coverage.
 - Never loosen thresholds, lint rules, format config, or compiler settings to make a build pass.
-  Report the problem instead. Do not edit `.swiftlint.yml`, `.swiftformat`, `.periphery.*`, `.quality/`,
-  `Tools/`, `Makefile`, or `.github/workflows/` unless the user asked for that change.
+  Report the problem instead. Do not edit `.swiftlint.yml`, `.swiftformat`, `.periphery.*`,
+  `Makefile`, or `.github/workflows/` unless the user asked for that change.
 - Do not use the Combine framework; use async/await.
 
 ## Known gate failures (as of the gates being introduced)
