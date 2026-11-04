@@ -52,7 +52,7 @@ final class HeadphoneController: NSObject {
     let writeUUID = JBLUUID.write
     let notifyUUID = JBLUUID.notify
 
-    @ObservationIgnored var central: CBCentralManager!
+    @ObservationIgnored let central = CBCentralManager(delegate: nil, queue: .main)
     @ObservationIgnored var peripheral: CBPeripheral?
     @ObservationIgnored var writeCharacteristic: CBCharacteristic?
     /// Decides what to write and how to react to replies; this class carries out its actions.
@@ -85,7 +85,8 @@ final class HeadphoneController: NSObject {
 
     override init() {
         super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
+        // Created without a delegate because `self` is unavailable before `super.init()`.
+        central.delegate = self
         // Release the headphones' single LE link cleanly on quit, so the next launch
         // doesn't have to wait for the stale connection to time out. This stays a synchronous
         // observer (an async sequence might not run before the app exits). It is delivered on
