@@ -1,4 +1,8 @@
-# JBL on Mac
+# JBL on Mac 🎧
+
+<img width="326" height="509" alt="Screenshot 2026-11-04 at 9 39 49 PM" src="https://github.com/user-attachments/assets/8717848d-5397-4ed5-a212-5389a1dd2394" />
+
+<img width="326" height="196" alt="Screenshot 2026-11-04 at 9 38 48 PM" src="https://github.com/user-attachments/assets/6ed429c2-5068-477c-9fe2-c0f556186113" />
 
 A macOS menu bar app for controlling JBL headphones without the JBL Headphones app for iOS or Android.
 
