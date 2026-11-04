@@ -25,9 +25,8 @@ extension HeadphoneController {
         // The headphones may already hold a BLE link to the system (e.g. via the audio
         // connection), in which case they don't advertise and a scan would never find them.
         let alreadyConnected = central.retrieveConnectedPeripherals(withServices: [JBLUUID.genericAccess])
-        let alreadyConnectedNames = alreadyConnected.map { $0.name ?? "nil" }
         log(
-            "already connected: \(alreadyConnectedNames), target=\(selectedDevice?.name ?? "nil"), "
+            "already connected: \(alreadyConnected.count) peripheral(s), target=\(selectedDevice?.name ?? "nil"), "
                 + "state=\(central.state.rawValue)"
         )
         if let match = alreadyConnected.first(where: { matchesSelectedDeviceExactly(name: $0.name) })
