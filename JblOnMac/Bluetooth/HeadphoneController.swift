@@ -1,7 +1,6 @@
 import AppKit
 import CoreBluetooth
 import Foundation
-import IOBluetooth
 import os
 
 /// Only used through `HeadphoneController.log`, which adds the device info to every line.
@@ -30,7 +29,14 @@ final class HeadphoneController: NSObject {
         }
     }
 
-    var devices: [JBLDevice] = []
+    /// Finds nearby JBL products and connects them through macOS; the list below comes from it.
+    let discovery: DeviceDiscovery
+
+    var devices: [JBLDevice] {
+        get { discovery.devices }
+        set { discovery.devices = newValue }
+    }
+
     var selectedDevice: JBLDevice?
     var status: Status = .idle
     /// Whether the Mac's Bluetooth radio is switched off. Tracked separately from `status`,
@@ -39,7 +45,10 @@ final class HeadphoneController: NSObject {
     /// Values reported by the selected headphones; reset as a whole when the selection changes.
     var state = DeviceState()
     /// Address of the device currently being paired / connected from the list.
-    var connectingAddress: String?
+    var connectingAddress: String? {
+        get { discovery.connectingAddress }
+        set { discovery.connectingAddress = newValue }
+    }
 
     /// The protocol dialect of the selected device.
     var model: JBLModel {
@@ -60,16 +69,6 @@ final class HeadphoneController: NSObject {
     /// The timeout of an equalizer upload or download.
     @ObservationIgnored var transferTimer: Task<Void, Never>?
 
-    @ObservationIgnored var inquiry: IOBluetoothDeviceInquiry?
-    @ObservationIgnored var isDiscovering = false
-    /// Whether the device lookup was running when a connect started and should come back after it.
-    @ObservationIgnored var resumeDiscoveryAfterConnect = false
-    /// The wait between one inquiry and the next; cancelled when discovery stops.
-    @ObservationIgnored var inquiryPause: Task<Void, Never>?
-    @ObservationIgnored var nearby: [String: IOBluetoothDevice] = [:]
-    @ObservationIgnored var nearbyTracker = NearbyTracker()
-    @ObservationIgnored var pairing: IOBluetoothDevicePair?
-
     /// Decides when to connect, retry, time out and give up; this class carries out its actions.
     @ObservationIgnored var machine = ConnectionStateMachine()
     /// Peripherals seen this session, by identifier, so the machine's actions can refer to them.
@@ -83,8 +82,10 @@ final class HeadphoneController: NSObject {
     /// Bluetooth log "API MISUSE: Cancelling connection for unused peripheral".
     @ObservationIgnored var cancelling: [UUID: CBPeripheral] = [:]
 
-    override init() {
+    init(classicBluetooth: (any ClassicBluetooth)? = nil) {
+        discovery = DeviceDiscovery(bluetooth: classicBluetooth ?? IOBluetoothClassic())
         super.init()
+        discovery.log = { [weak self] message, level in self?.log(message, level: level) }
         // Created without a delegate because `self` is unavailable before `super.init()`.
         central.delegate = self
         // Release the headphones' single LE link cleanly on quit, so the next launch
@@ -142,14 +143,5 @@ final class HeadphoneController: NSObject {
     func send(_ command: JBLCommand) {
         guard peripheral != nil, writeCharacteristic != nil else { return }
         run(.send(command))
-    }
-
-    // periphery:ignore - IOBluetooth calls this by selector, so there is no Swift reference to it.
-    /// Delegate callback for `IOBluetoothDevice.openConnection(_:)`.
-    @objc func connectionComplete(_: IOBluetoothDevice!, status: IOReturn) {
-        if status != kIOReturnSuccess {
-            log("couldn't connect through macOS", level: .error)
-        }
-        finishConnecting()
     }
 }
