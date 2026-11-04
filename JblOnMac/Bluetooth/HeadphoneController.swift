@@ -46,6 +46,9 @@ final class HeadphoneController: NSObject {
         selectedDevice.map { JBLModel(name: $0.name) } ?? .unknown
     }
 
+    /// What is remembered between launches.
+    let deviceStore = DeviceStore()
+
     let writeUUID = JBLUUID.write
     let notifyUUID = JBLUUID.notify
 
