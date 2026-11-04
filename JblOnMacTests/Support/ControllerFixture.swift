@@ -22,6 +22,7 @@ enum ControllerFixture {
     /// whatever was stored before.
     static func withController(
         selecting selected: JBLDevice? = ControllerFixture.device,
+        classicBluetooth: (any ClassicBluetooth)? = nil,
         _ body: (HeadphoneController) -> Void
     ) {
         let defaults = UserDefaults.standard
@@ -36,7 +37,7 @@ enum ControllerFixture {
                 }
             }
         }
-        let controller = HeadphoneController()
+        let controller = HeadphoneController(classicBluetooth: classicBluetooth ?? FakeClassicBluetooth())
         controllers.append(controller)
         controller.selectedDevice = selected
         body(controller)
