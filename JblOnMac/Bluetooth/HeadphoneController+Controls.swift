@@ -58,37 +58,10 @@ extension HeadphoneController {
         state.equalizer = preset
         let packets = model.equalizerCommands(preset)
         if packets.count > 1 {
-            upload(preset)
+            run(.uploadEqualizer(preset))
         } else {
             packets.forEach { send($0) }
         }
-    }
-
-    /// Starts the chunked write of a preset, or queues it behind the running one so two uploads
-    /// don't interleave.
-    private func upload(_ preset: EqualizerPreset) {
-        guard uploadRemaining == nil else {
-            queuedEqualizer = preset
-            return
-        }
-        var packets = model.equalizerCommands(preset)
-        send(packets.removeFirst())
-        uploadRemaining = packets
-    }
-
-    /// Tune 230NC: sends the next upload packet once the headphones acked the previous one.
-    func uploadPacketAcknowledged() {
-        guard var remaining = uploadRemaining else { return }
-        guard !remaining.isEmpty else {
-            uploadRemaining = nil
-            if let next = queuedEqualizer {
-                queuedEqualizer = nil
-                upload(next)
-            }
-            return
-        }
-        send(remaining.removeFirst())
-        uploadRemaining = remaining
     }
 
     /// Sets what the touch controls of one earbud do.

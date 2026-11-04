@@ -6,33 +6,6 @@ import Testing
 extension ControllerSuite {
     @MainActor
     struct ControlsTests {
-        @Test func theLastAcknowledgementStartsAQueuedPreset() {
-            ControllerFixture.withController { controller in
-                controller.uploadRemaining = []
-                controller.queuedEqualizer = .club
-                controller.uploadPacketAcknowledged()
-                #expect(controller.queuedEqualizer == nil)
-                #expect(controller.uploadRemaining == Array(JBLCommand.equalizerUpload(.club).dropFirst()))
-            }
-        }
-
-        @Test func theLastAcknowledgementEndsTheUploadWhenNothingIsQueued() {
-            ControllerFixture.withController { controller in
-                controller.uploadRemaining = []
-                controller.uploadPacketAcknowledged()
-                #expect(controller.uploadRemaining == nil)
-            }
-        }
-
-        @Test func acknowledgementsWithoutAnUploadAreIgnored() {
-            ControllerFixture.withController { controller in
-                controller.uploadPacketAcknowledged()
-                #expect(controller.uploadRemaining == nil)
-                controller.apply(.acknowledged(group: 0x99, status: 1))
-                #expect(controller.uploadRemaining == nil)
-            }
-        }
-
         /// There is no peripheral in tests, so every command has to be ignored and leave the
         /// optimistic state alone; a UI toggle must not flip when nothing could be sent.
         @Test func commandsAreIgnoredWhileThereIsNoLink() {
@@ -65,8 +38,7 @@ extension ControllerSuite {
                 #expect(state.callVoiceSetting == nil)
                 #expect(state.voiceAwareEnabled == nil)
                 #expect(state.voiceAwareLevel == nil)
-                #expect(controller.pendingWrites.isEmpty)
-                #expect(controller.uploadRemaining == nil)
+                #expect(controller.pipeline == CommandPipeline())
             }
         }
     }
