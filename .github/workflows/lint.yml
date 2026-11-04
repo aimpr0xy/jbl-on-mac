@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  swiftlint:
+  swift_lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     container:
