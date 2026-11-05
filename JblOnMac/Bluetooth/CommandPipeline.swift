@@ -40,6 +40,9 @@ struct CommandPipeline: Equatable {
     private(set) var queuedEqualizer: EqualizerPreset?
     /// Bytes of the chunked reply being received. Nil while none is.
     private(set) var downloadBuffer: [UInt8]?
+    /// The newest slider write per `JBLCommand.coalescingKey` that arrived while an earlier one
+    /// was unacknowledged. It is sent when that one is acked; older values are dropped.
+    private(set) var coalescedWrites: [String: JBLCommand] = [:]
     /// Whether the upload running now is the retry of a queued preset after a timeout.
     private var isRetrying = false
 
@@ -51,7 +54,7 @@ struct CommandPipeline: Equatable {
     mutating func handle(_ event: Event, presets: [EqualizerPreset] = []) -> [Action] {
         switch event {
         case let .send(command):
-            [transmit(command)]
+            send(command)
         case let .uploadEqualizer(preset):
             upload(preset)
         case let .writeCompleted(error):
@@ -67,6 +70,16 @@ struct CommandPipeline: Equatable {
 
     // MARK: - Writing
 
+    /// Writes the command, unless it is a slider write and one for the same slider is still
+    /// unacknowledged: then it waits as the newest value, so writes never queue up while dragging.
+    private mutating func send(_ command: JBLCommand) -> [Action] {
+        if let key = command.coalescingKey, pendingWrites.contains(where: { $0.coalescingKey == key }) {
+            coalescedWrites[key] = command
+            return []
+        }
+        return [transmit(command)]
+    }
+
     private mutating func transmit(_ command: JBLCommand) -> Action {
         pendingWrites.append(command)
         return .write(command)
@@ -77,12 +90,21 @@ struct CommandPipeline: Equatable {
     private mutating func writeCompleted(error: String?) -> [Action] {
         guard !pendingWrites.isEmpty else { return [] }
         let command = pendingWrites.removeFirst()
-        guard let error else { return [] }
+        let next = command.coalescingKey.flatMap { coalescedWrites.removeValue(forKey: $0) }
+        guard let error else {
+            // Dragging back to the value just acknowledged leaves nothing new to send.
+            guard let next, next != command else { return [] }
+            return [transmit(next)]
+        }
         var actions = [Action.log("write failed for \(String(describing: command)): \(error)", isError: true)]
         // The rest of an upload is useless once one of its packets is lost.
         if command.refreshQuery == .queryEqualizerCurve {
             abandonUpload()
             actions.append(transferTimer())
+        }
+        // The newer slider value goes first, so the refresh reports it rather than the failed one.
+        if let next {
+            actions.append(transmit(next))
         }
         if let query = command.refreshQuery {
             actions.append(transmit(query))

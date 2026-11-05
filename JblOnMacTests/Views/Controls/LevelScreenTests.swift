@@ -33,4 +33,11 @@ struct LevelScreenTests {
         let size = ViewHost.size(of: LevelScreen(headphones: headphones, mode: .talkThru, screen: box.binding))
         #expect(size.height > 0)
     }
+
+    @Test func levelRoundsToTheNearestStrength() {
+        #expect(LevelScreen.level(for: 2.6) == 3)
+        #expect(LevelScreen.level(for: 2.4) == 2)
+        #expect(LevelScreen.level(for: 1) == 1)
+        #expect(LevelScreen.level(for: 6.5) == 7)
+    }
 }

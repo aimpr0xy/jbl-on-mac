@@ -282,3 +282,55 @@ struct CommandPipelineTests {
             .handle(.notified(bytes("AA 91 07 12 01 00 02 01 03 00"))) == [.apply(.listeningMode(.ambientAware))])
     }
 }
+
+// MARK: - Slider writes
+
+extension CommandPipelineTests {
+    @Test func sliderWritesWaitForTheUnacknowledgedOneAndOnlyTheNewestIsSent() {
+        var pipeline = CommandPipeline()
+        #expect(writes(pipeline.handle(.send(.setBalance(1)))) == [.setBalance(1)])
+        #expect(pipeline.handle(.send(.setBalance(2))).isEmpty)
+        #expect(pipeline.handle(.send(.setBalance(3))).isEmpty)
+        #expect(pipeline.pendingWrites == [.setBalance(1)])
+        #expect(writes(pipeline.handle(.writeCompleted(error: nil))) == [.setBalance(3)])
+        #expect(pipeline.handle(.writeCompleted(error: nil)).isEmpty)
+        #expect(pipeline.pendingWrites.isEmpty)
+        #expect(pipeline.coalescedWrites.isEmpty)
+    }
+
+    @Test func aWaitingSliderValueEqualToTheAcknowledgedOneIsNotSentAgain() {
+        var pipeline = CommandPipeline()
+        _ = pipeline.handle(.send(.setBalance(5)))
+        _ = pipeline.handle(.send(.setBalance(6)))
+        _ = pipeline.handle(.send(.setBalance(5)))
+        #expect(pipeline.handle(.writeCompleted(error: nil)).isEmpty)
+        #expect(pipeline.coalescedWrites.isEmpty)
+        #expect(writes(pipeline.handle(.send(.setBalance(6)))) == [.setBalance(6)])
+    }
+
+    @Test func slidersAndOtherCommandsDoNotWaitForEachOther() {
+        var pipeline = CommandPipeline()
+        _ = pipeline.handle(.send(.setBalance(1)))
+        #expect(writes(pipeline.handle(.send(.setLevel(.noiseCanceling, 2)))) == [.setLevel(.noiseCanceling, 2)])
+        #expect(writes(pipeline.handle(.send(.setLevel(.ambientAware, 3)))) == [.setLevel(.ambientAware, 3)])
+        #expect(writes(pipeline.handle(.send(.setVolumeLimiter(true)))) == [.setVolumeLimiter(true)])
+        #expect(pipeline.handle(.send(.setLevel(.noiseCanceling, 4))).isEmpty)
+    }
+
+    @Test func aFailedSliderWriteStillSendsTheNewestValueBeforeItsRefreshQuery() {
+        var pipeline = CommandPipeline()
+        _ = pipeline.handle(.send(.setBalance(1)))
+        _ = pipeline.handle(.send(.setBalance(2)))
+        let actions = pipeline.handle(.writeCompleted(error: "nope"))
+        #expect(writes(actions) == [.setBalance(2), .queryBalance])
+    }
+
+    @Test func aDroppedLinkForgetsWaitingSliderWrites() {
+        var pipeline = CommandPipeline()
+        _ = pipeline.handle(.send(.setBalance(1)))
+        _ = pipeline.handle(.send(.setBalance(2)))
+        _ = pipeline.handle(.linkDropped)
+        #expect(pipeline.coalescedWrites.isEmpty)
+        #expect(writes(pipeline.handle(.send(.setBalance(3)))) == [.setBalance(3)])
+    }
+}
