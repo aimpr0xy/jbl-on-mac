@@ -55,15 +55,15 @@ struct Tune230NCTests {
             EarbudSide.left,
             GestureControl.volume,
             GestureControl.ambientSound,
-            "AA 77 0B 00 06 08 07 05 08 06 0C A1 0E A1"
+            "AA 77 0B 00 06 01 07 02 08 00 0C A1 0E A1"
         ),
         (.left, .ambientSound, .volume, "AA 77 0B 00 06 09 07 04 08 00 0C A1 0E A1"),
-        (.left, .playback, .volume, "AA 77 0B 00 06 01 07 02 08 00 0C A1 0E A1"),
+        (.left, .playback, .volume, "AA 77 0B 00 06 08 07 05 08 06 0C A1 0E A1"),
         (.left, .none, .volume, "AA 77 0B 00 06 00 07 00 08 00 0C 00 0E A1"),
         (.right, .ambientSound, .volume, "AA 77 0B 00 09 09 0A 04 0B 00 0E A1 0C A1"),
-        (.right, .playback, .volume, "AA 77 0B 00 09 01 0A 02 0B 00 0E A1 0C A1"),
+        (.right, .playback, .volume, "AA 77 0B 00 09 08 0A 05 0B 06 0E A1 0C A1"),
         (.right, .none, .volume, "AA 77 0B 00 09 00 0A 00 0B 00 0E 00 0C A1"),
-        (.right, .volume, .volume, "AA 77 0B 00 09 08 0A 05 0B 06 0E A1 0C A1")
+        (.right, .volume, .volume, "AA 77 0B 00 09 01 0A 02 0B 00 0E A1 0C A1")
     ])
     func gestureWrites(side: EarbudSide, control: GestureControl, other: GestureControl, hex: String) {
         let command = JBLModel.tune230NC.gestureCommand(side, control, other: other)
@@ -131,7 +131,7 @@ struct Tune230NCTests {
         ("AA 91 07 12 01 00 02 01 03 00", [.listeningMode(.ambientAware)]),
         // A write echo carries the written side fully and only the other side's last slot.
         ("AA 77 0B 02 09 09 0A 04 0B 00 0E A1 0C A1", [.gestureControl(.right, .ambientSound)]),
-        ("AA 77 11 02 06 08 07 05 08 06 0C A1 09 09 0A 04 0B 00 0E A1",
+        ("AA 77 11 02 06 01 07 02 08 00 0C A1 09 09 0A 04 0B 00 0E A1",
          [.gestureControl(.left, .volume), .gestureControl(.right, .ambientSound)])
     ]
 
