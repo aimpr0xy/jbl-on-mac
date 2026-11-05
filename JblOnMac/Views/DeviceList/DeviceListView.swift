@@ -13,11 +13,7 @@ struct DeviceListView: View {
                 bluetoothOffState
             } else {
                 if headphones.devices.isEmpty {
-                    Text("Searching for nearby JBL products…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                    searchingState
                 }
 
                 ForEach(headphones.devices) { device in
@@ -39,6 +35,26 @@ struct DeviceListView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+    }
+
+    /// Shown while Bluetooth is on but no JBL product has been found or remembered yet.
+    private var searchingState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "headphones")
+                .font(.system(size: 32))
+                .foregroundStyle(.secondary)
+            Text("No JBL products found")
+                .font(.headline)
+            Text("Turn on your JBL headphones and keep them close to your Mac.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            ProgressView()
+                .controlSize(.small)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)

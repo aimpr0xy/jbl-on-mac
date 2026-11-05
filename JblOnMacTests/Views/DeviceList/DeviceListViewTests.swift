@@ -33,4 +33,11 @@ struct DeviceListViewTests {
         #expect(off == offEmpty)
         #expect(off.height != withList.height)
     }
+
+    @Test func emptyListShowsAFullEmptyState() {
+        let empty = list { _ in }
+        let one = list { $0.devices = [connected] }
+        #expect(empty.height > 100)
+        #expect(empty.height > one.height)
+    }
 }
