@@ -23,4 +23,12 @@ struct BalanceScreenTests {
         #expect(heights[0] > 0)
         #expect(Set(heights).count == 1)
     }
+
+    @Test func stepRoundsToTheNearestBalanceValue() {
+        #expect(BalanceScreen.step(for: -3.6) == -4)
+        #expect(BalanceScreen.step(for: -3.4) == -3)
+        #expect(BalanceScreen.step(for: 4.5) == 5)
+        #expect(BalanceScreen.step(for: 0.2) == 0)
+        #expect(BalanceScreen.step(for: -16) == -16)
+    }
 }

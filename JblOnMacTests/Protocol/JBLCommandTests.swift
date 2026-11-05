@@ -54,4 +54,16 @@ struct JBLCommandTests {
         }
         #expect(total == length)
     }
+
+    @Test func onlySliderWritesCoalesceAndPerSlider() {
+        let balance = JBLCommand.setBalance(3).coalescingKey
+        let noise = JBLCommand.setLevel(.noiseCanceling, 1).coalescingKey
+        let ambient = JBLCommand.setLevel(.ambientAware, 1).coalescingKey
+        #expect(balance == JBLCommand.setBalance(-4).coalescingKey)
+        #expect(noise == JBLCommand.setLevel(.noiseCanceling, 7).coalescingKey)
+        #expect(noise != ambient)
+        #expect(balance != noise)
+        #expect(JBLCommand.setVolumeLimiter(true).coalescingKey == nil)
+        #expect(JBLCommand.queryBalance.coalescingKey == nil)
+    }
 }

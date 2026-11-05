@@ -164,6 +164,16 @@ enum JBLCommand: Equatable {
         }
     }
 
+    /// Set for writes a slider produces many of while dragging: only the newest one of the same
+    /// key is worth sending once an earlier one is still unacknowledged. Nil for everything else.
+    var coalescingKey: String? {
+        switch self {
+        case .setBalance: "balance"
+        case let .setLevel(mode, _): "level.\(mode)"
+        default: nil
+        }
+    }
+
     /// The query that makes the headphones report the state this write changes, so the real value
     /// can be restored if the write fails. Nil for queries and for writes that have no query.
     var refreshQuery: JBLCommand? {
