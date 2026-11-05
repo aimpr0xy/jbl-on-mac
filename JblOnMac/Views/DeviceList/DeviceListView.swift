@@ -58,7 +58,7 @@ struct DeviceListView: View {
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
-        .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
+        .padding(.vertical, 24)
     }
 }
