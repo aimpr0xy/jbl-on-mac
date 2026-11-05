@@ -31,9 +31,9 @@ struct GestureControlTests {
         GestureExpectation(control: .ambientSound, title: "Ambient Sound Control", image: "ear.and.waveform",
                            leftActions: "09 04 00 A1", rightActions: "0B 04 00 A1"),
         GestureExpectation(control: .volume, title: "Volume Control", image: "speaker.wave.2",
-                           leftActions: "08 05 06 A1", rightActions: "08 05 06 A1"),
+                           leftActions: "01 02 00 A1", rightActions: "01 02 00 A1"),
         GestureExpectation(control: .playback, title: "Playback Control", image: "playpause",
-                           leftActions: "01 02 00 A1", rightActions: "01 02 00 A1")
+                           leftActions: "08 05 06 A1", rightActions: "08 05 06 A1")
     ])
     func gesture(_ expected: GestureExpectation) {
         let control = expected.control
