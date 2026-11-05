@@ -46,17 +46,19 @@ struct DeviceListView: View {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("Discovering…")
+            Text("Discovering")
                 .font(.headline)
             Text("Turn on your JBL headphones and keep them close to your Mac.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             ProgressView()
                 .controlSize(.small)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
     }
 }
