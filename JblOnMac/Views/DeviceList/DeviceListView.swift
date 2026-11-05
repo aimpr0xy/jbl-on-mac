@@ -43,10 +43,10 @@ struct DeviceListView: View {
     /// Shown while Bluetooth is on but no JBL product has been found or remembered yet.
     private var searchingState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "headphones")
+            Image(systemName: "dot.radiowaves.left.and.right")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("No JBL products found")
+            Text("Discovering…")
                 .font(.headline)
             Text("Turn on your JBL headphones and keep them close to your Mac.")
                 .font(.caption)
