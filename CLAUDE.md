@@ -7,10 +7,13 @@ See `CONTRIBUTING.md` for the protocol and device workflow.
 ## Quality gates
 
 Run `make check` before every commit. It runs the same steps as CI (`lint.yml`, `format.yml`, `test.yml`, `quality.yml` in `.github/workflows`):
-SwiftLint, SwiftFormat `--lint`, build, tests, SwiftLint analyzer rules,
+SwiftLint, SwiftFormat `--lint`, ShellCheck on `Scripts/`, build, tests, SwiftLint analyzer rules,
 and Periphery. Run one step with `make lint`, `make format`, `make test`, and so on.
-Tools: `brew install swiftlint swiftformat periphery`. If Xcode is not the selected developer directory,
-set `DEVELOPER_DIR`.
+Tools: `brew install swiftlint swiftformat shellcheck periphery`. If Xcode is not the selected developer
+directory, set `DEVELOPER_DIR`.
+
+Shell logic used by the Makefile or the workflows lives in `Scripts/*.sh`, not inline in a recipe or a
+`run:` step. The release steps are Make targets too (`next-version`, `archive`, `verify-app`, `dmg`).
 
 ### Limits (from `.swiftlint.yml`)
 
