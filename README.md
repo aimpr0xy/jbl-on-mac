@@ -40,6 +40,20 @@ Have a different JBL device? Please test it and add a column for it to this tabl
 - A Mac with Bluetooth
 - A compatible JBL device
 
+## Download
+
+1. Download the latest `JblOnMac-<version>.dmg` from the [Releases page](https://github.com/aimpr0xy/jbl-on-mac/releases/latest).
+2. Open the DMG and drag **JblOnMac** to **Applications**.
+3. Open the app. macOS will say it can't be opened, because the app isn't notarized by Apple. Open **System Settings → Privacy & Security**, scroll to the message about JblOnMac, click **Open Anyway**, and confirm. You only need to do this once.
+
+   If you prefer Terminal, this removes the block instead:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/JblOnMac.app
+   ```
+
+The app is open source, so you can read the code and build it yourself (see below). Each release lists a SHA-256 checksum next to the DMG; check it with `shasum -a 256 JblOnMac-<version>.dmg`.
+
 ## Building and running
 
 1. Clone the repository:
