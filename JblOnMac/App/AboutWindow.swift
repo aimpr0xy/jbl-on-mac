@@ -25,6 +25,9 @@ final class AboutWindow {
         // An agent app is never frontmost on its own, so activate it or the window opens behind.
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+        // Activation is cooperative and can be denied when it comes from a menu action, so also
+        // order the window front directly.
+        window?.orderFrontRegardless()
     }
 }
 
