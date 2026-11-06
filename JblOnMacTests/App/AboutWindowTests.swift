@@ -8,6 +8,11 @@ struct AboutWindowTests {
         NSApp.windows.filter { $0.title == "About" }
     }
 
+    @Test func iconIsAlwaysAvailable() {
+        #expect(AboutWindow.icon.size.width > 0)
+        #expect(AboutWindow.icon.size.height > 0)
+    }
+
     @Test func aboutWindowOpensOnceAndIsReused() throws {
         AboutWindow.shared.show()
         AboutWindow.shared.show()

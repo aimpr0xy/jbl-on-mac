@@ -8,6 +8,11 @@ final class AboutWindow {
 
     private var window: NSWindow?
 
+    /// The app icon from the asset catalog, falling back to whatever icon the app currently has.
+    static var icon: NSImage {
+        NSImage(named: "jbl-icon") ?? NSApp.applicationIconImage
+    }
+
     func show() {
         if window == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: AboutView()))
@@ -33,7 +38,7 @@ private struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(nsImage: NSApp.applicationIconImage)
+            Image(nsImage: AboutWindow.icon)
                 .resizable()
                 .frame(width: 96, height: 96)
             Text("JBL On Mac")
