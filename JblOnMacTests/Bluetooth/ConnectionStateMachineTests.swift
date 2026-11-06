@@ -43,22 +43,38 @@ struct ConnectionStateMachineTests {
         var machine = ConnectionStateMachine()
         _ = machine.handle(.selected)
         let actions = machine.handle(.attempt(.remembered(first)))
-        #expect(actions == [.connect(first), .cancelTimer(.retry), .startTimer(.watchdog, .seconds(10))])
+        #expect(actions == [
+            .scan, .connect(first), .cancelTimer(.retry), .startTimer(.watchdog, .seconds(10))
+        ])
         #expect(machine.phase == .connecting)
         #expect(machine.current == first)
     }
 
-    @Test func alsoScansWhenTheRememberedIdentifierKeepsFailing() {
-        var machine = connecting(to: first)
-        _ = machine.handle(.didFailToConnect(first))
-        _ = machine.handle(.timerFired(.retry))
-        _ = machine.handle(.attempt(.remembered(first)))
-        _ = machine.handle(.didFailToConnect(first))
-        #expect(machine.failedAttempts == 2)
+    @Test func scansFromTheFirstRememberedAttemptInCaseTheIdentifierIsStale() {
+        var machine = ConnectionStateMachine()
+        _ = machine.handle(.selected)
+        #expect(machine.failedAttempts == 0)
+        #expect(machine.handle(.attempt(.remembered(first))).first == .scan)
+    }
 
-        let actions = machine.handle(.attempt(.remembered(first)))
-        #expect(actions.first == .scan)
-        #expect(actions.contains(.connect(first)))
+    @Test func switchesToTheNewIdentifierWithoutWaitingForTheWatchdog() {
+        var machine = ConnectionStateMachine()
+        _ = machine.handle(.selected)
+        _ = machine.handle(.attempt(.remembered(first)))
+
+        let actions = machine.handle(.discovered(second, .exact))
+        #expect(actions.contains(.cancel(first)))
+        #expect(actions.contains(.connect(second)))
+        #expect(machine.current == second)
+        #expect(machine.failedAttempts == 0)
+    }
+
+    @Test func stopsScanningWhenTheRememberedIdentifierWins() {
+        var machine = ConnectionStateMachine()
+        _ = machine.handle(.selected)
+        _ = machine.handle(.attempt(.remembered(first)))
+        _ = machine.handle(.didConnect(first))
+        #expect(machine.handle(.linkReady(first)).first == .stopScan)
     }
 
     @Test func ignoresAnAttemptAfterDeselecting() {
@@ -191,7 +207,7 @@ struct ConnectionStateMachineTests {
         _ = machine.handle(.didConnect(first))
         #expect(machine.failedAttempts == 1)
 
-        #expect(machine.handle(.linkReady(first)) == [.cancelTimer(.watchdog)])
+        #expect(machine.handle(.linkReady(first)) == [.stopScan, .cancelTimer(.watchdog)])
         #expect(machine.failedAttempts == 0)
         #expect(machine.phase == .connected)
     }
