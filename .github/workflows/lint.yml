@@ -1,7 +1,7 @@
 name: Lint
 
-# Linux: no Apple frameworks needed. Complexity, length and style rules run here;
-# the analyzer rules need a compiler log and run in test.yml.
+# Linux: no Apple frameworks needed. Complexity, length and style rules and ShellCheck for
+# Scripts/ run here; the analyzer rules need a compiler log and run in quality.yml.
 on:
   pull_request:
 
@@ -22,3 +22,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: SwiftLint
         run: swiftlint lint --strict --reporter github-actions-logging
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: make shellcheck
