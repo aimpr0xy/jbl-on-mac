@@ -6,14 +6,15 @@ See `CONTRIBUTING.md` for the protocol and device workflow.
 
 ## Quality gates
 
-Run `make check` before every commit. It runs the same steps as CI (`lint.yml`, `format.yml`, `test.yml`, `quality.yml` in `.github/workflows`):
+Run `make check` before every commit. It runs the same steps as CI (`.github/workflows/ci.yml`):
 SwiftLint, SwiftFormat `--lint`, ShellCheck on `Scripts/`, build, tests, SwiftLint analyzer rules,
 and Periphery. Run one step with `make lint`, `make format`, `make test`, and so on.
-Tools: `brew install swiftlint swiftformat shellcheck periphery`. If Xcode is not the selected developer
-directory, set `DEVELOPER_DIR`.
+Tools: `brew install swiftlint swiftformat shellcheck periphery`. CI pins their versions in the `env` of
+`ci.yml`. If Xcode is not the selected developer directory, set `DEVELOPER_DIR`.
 
 Shell logic used by the Makefile or the workflows lives in `Scripts/*.sh`, not inline in a recipe or a
-`run:` step. The release steps are Make targets too (`next-version`, `archive`, `verify-app`, `dmg`).
+`run:` step. The release workflow calls `Scripts/semver.sh`, `make archive`, `Scripts/codesign.sh` and
+`Scripts/hdiutil.sh`.
 
 ### Limits (from `.swiftlint.yml`)
 
@@ -38,8 +39,7 @@ Split functions and types instead of fighting the limits.
   name a test file after who or when wrote it. Extras: per-device protocol tests live in
   `JblOnMacTests/Protocol/Devices/` (one file per device), and shared helpers in `JblOnMacTests/Support/`.
   Suites that use `ControllerFixture` nest in `ControllerSuite`, which serializes them because they share
-  `UserDefaults`. CI runs one test shard per top-level folder of `JblOnMacTests` (the matrix in `test.yml`);
-  `make test TEST_SHARD=Views` runs one locally. The only source file without a test file is the `@main` entry point `App/JblOnMac.swift`.
+  `UserDefaults`. The only source file without a test file is the `@main` entry point `App/JblOnMac.swift`.
 - Every new function needs tests that assert behavior (inputs to expected outputs or state changes),
   not tests that only execute lines to raise coverage.
 - Never loosen thresholds, lint rules, format config, or compiler settings to make a build pass.
