@@ -109,17 +109,13 @@ struct DeviceControlsViewTests {
         #expect(height({ _ in }, name: "JBL Tune Beam 2") == supported)
     }
 
-    @Test func firmwareFooterAppearsWithAndWithoutCase() {
+    @Test func firmwareVersionsAreLeftToDeveloperMode() {
         let none = height { _ in }
-        let earbuds = height { $0.info.firmware = "1.2.3" }
-        let withCase = height {
+        #expect(height { $0.info.firmware = "1.2.3" } == none)
+        #expect(height {
             $0.info.firmware = "1.2.3"
             $0.info.caseFirmware = "4.5.6"
-        }
-        #expect(earbuds > none)
-        #expect(withCase >= earbuds)
-        // Case firmware alone is not shown.
-        #expect(height { $0.info.caseFirmware = "4.5.6" } == none)
+        } == none)
     }
 
     @Test func batteryRowAppearsForAnyReading() {

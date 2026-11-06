@@ -15,6 +15,24 @@ extension ControllerSuite {
             }
         }
 
+        @Test func readingTheLinkSignalWithoutALinkLeavesItUnknown() {
+            ControllerFixture.withController { controller in
+                controller.readLinkRSSI()
+                #expect(controller.linkRSSI == nil)
+                #expect(controller.linkIdentifier == nil)
+            }
+        }
+
+        @Test func leavingTheDeviceForgetsItsSignal() {
+            ControllerFixture.withController { controller in
+                controller.linkRSSI = -60
+                controller.linkIdentifier = UUID()
+                controller.deselect()
+                #expect(controller.linkRSSI == nil)
+                #expect(controller.linkIdentifier == nil)
+            }
+        }
+
         @Test func firmwareRepliesAreStoredAndSavedForNextTime() {
             ControllerFixture.withController { controller in
                 controller.apply(.firmware("3.7.0"))

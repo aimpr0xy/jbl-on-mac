@@ -12,6 +12,20 @@ extension HeadphoneController: CBPeripheralDelegate {
         }
     }
 
+    /// Asks for the current signal strength of the BLE link; the answer arrives in `didReadRSSI`.
+    func readLinkRSSI() {
+        guard let peripheral, peripheral.state == .connected else { return }
+        linkIdentifier = peripheral.identifier
+        peripheral.readRSSI()
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        // 127 means the signal couldn't be read.
+        guard peripheral.identifier == self.peripheral?.identifier, error == nil,
+              RSSI.intValue != 127 else { return }
+        linkRSSI = RSSI.intValue
+    }
+
     func peripheral(_ peripheral: CBPeripheral,
                     didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral.identifier == self.peripheral?.identifier, characteristic.uuid == writeUUID else { return }

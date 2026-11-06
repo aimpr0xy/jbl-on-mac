@@ -44,6 +44,10 @@ final class HeadphoneController: NSObject {
     var isBluetoothOff = false
     /// Values reported by the selected headphones; reset as a whole when the selection changes.
     var state = DeviceState()
+    /// Signal strength of the selected device's BLE link in dBm, once read; see `readLinkRSSI()`.
+    var linkRSSI: Int?
+    /// Core Bluetooth's identifier for the BLE link, which stands in for the LE address it never shows.
+    var linkIdentifier: UUID?
     /// Address of the device currently being paired / connected from the list.
     var connectingAddress: String? {
         get { discovery.connectingAddress }
@@ -135,6 +139,8 @@ final class HeadphoneController: NSObject {
         disconnect()
         selectedDevice = nil
         state = DeviceState()
+        linkRSSI = nil
+        linkIdentifier = nil
         status = .idle
         startDiscovery()
     }

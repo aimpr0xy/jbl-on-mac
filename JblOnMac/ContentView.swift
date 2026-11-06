@@ -78,6 +78,8 @@ struct PopoverScreens: View {
                 CallVoiceScreen(headphones: headphones, screen: $screen)
             case .voiceAware:
                 VoiceAwareScreen(headphones: headphones, screen: $screen)
+            case .developerMode:
+                DeveloperModeScreen(headphones: headphones, device: device, screen: $screen)
             }
         }
     }

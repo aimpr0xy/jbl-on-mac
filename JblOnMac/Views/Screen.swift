@@ -12,4 +12,5 @@ enum Screen: Hashable {
     case callVoice
     case voiceAware
     case gestures(EarbudSide)
+    case developerMode
 }

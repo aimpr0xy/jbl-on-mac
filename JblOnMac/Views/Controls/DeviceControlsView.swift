@@ -21,9 +21,9 @@ struct DeviceControlsView: View {
             touchControlRows
             callsRow
 
-            unsupportedNote
+            developerModeRow
 
-            firmwareFooter
+            unsupportedNote
         }
     }
 
@@ -152,6 +152,14 @@ struct DeviceControlsView: View {
         }
     }
 
+    private var developerModeRow: some View {
+        SelectableRow(systemImage: "hammer", title: "Developer Mode", isActive: false) {
+            DisclosureChevron()
+        } action: {
+            screen = .developerMode
+        }
+    }
+
     /// Models we haven't captured traffic from are read-only; ask for a log so they can be added.
     @ViewBuilder
     private var unsupportedNote: some View {
@@ -164,24 +172,6 @@ struct DeviceControlsView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
-        }
-    }
-
-    /// Earbud (and, if reported, charging case) firmware, like the JBL app shows.
-    @ViewBuilder
-    private var firmwareFooter: some View {
-        if let firmware = headphones.state.info.firmware {
-            Group {
-                if let caseFirmware = headphones.state.info.caseFirmware {
-                    Text("Firmware \(firmware) · Case \(caseFirmware)")
-                } else {
-                    Text("Firmware \(firmware)")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
             .padding(.horizontal, 8)
             .padding(.top, 8)
         }
