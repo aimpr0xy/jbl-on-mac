@@ -114,9 +114,9 @@ struct ConnectionStateMachine {
         guard isSelected else { return [] }
         switch lookup {
         case let .remembered(id):
-            // The identifier may be stale (the headphones can change their LE address), so
-            // after a couple of failures also scan for a new one.
-            return (failedAttempts >= 2 ? [.scan] : []) + connect(to: id)
+            // The identifier may be stale (the headphones can change their LE address), and a
+            // stale one never fails fast, so always scan for a new one alongside it.
+            return [.scan] + connect(to: id)
         case let .alreadyConnected(id):
             return connect(to: id)
         case .none:
@@ -162,7 +162,7 @@ struct ConnectionStateMachine {
         // its services should still count toward giving up.
         failedAttempts = 0
         phase = .connected
-        return [.cancelTimer(.watchdog)]
+        return [.stopScan, .cancelTimer(.watchdog)]
     }
 
     private mutating func timerFired(_ timer: Timer) -> [Action] {
