@@ -8,7 +8,18 @@ SHARD_FILES = $(if $(filter root,$(TEST_SHARD)),$(wildcard JblOnMacTests/*Tests.
 COVERAGE ?= YES
 RESULT ?= build/tests$(if $(TEST_SHARD),-$(TEST_SHARD)).xcresult
 
-.PHONY: check lint format build build-for-testing test analyze periphery
+# Installer DMG (`make dmg`, also used by release.yml). The app is built beforehand.
+APP ?= build/JblOnMac.app
+DMG ?= build/JblOnMac.dmg
+# A blank disk image with the installer window already laid out: background, disk icon, window size,
+# icon size and icon positions. The app is copied into a writable copy of it. Its layout is saved per
+# file name, so the app inside must be named JblOnMac.app. Finder never scales or tiles a background,
+# so the image is 2000x1300 pt (1x and 2x) with the artwork in the top left and its pattern continued
+# beyond it. A window dragged larger than the artwork then shows no white.
+DMG_TEMPLATE ?= InstallerTemplate.dmg
+DMG_WORK = build/dmg-work
+
+.PHONY: check lint format build build-for-testing test analyze periphery dmg
 
 # Runs every step even if one fails, then reports the failures.
 check:
@@ -49,3 +60,15 @@ analyze:
 
 periphery:
 	periphery scan
+
+dmg:
+	mkdir -p $(DMG_WORK)
+	hdiutil convert "$(DMG_TEMPLATE)" -quiet -ov -format UDRW -o $(DMG_WORK).dmg
+	hdiutil attach $(DMG_WORK).dmg -quiet -noautoopen -nobrowse -mountpoint $(DMG_WORK)
+	@# The template holds an empty placeholder app, which ditto would merge into instead of replace.
+	rm -rf "$(DMG_WORK)/$(notdir $(APP))"
+	ditto "$(APP)" "$(DMG_WORK)/$(notdir $(APP))"
+	hdiutil detach $(DMG_WORK) -quiet || { sleep 2; hdiutil detach $(DMG_WORK) -force -quiet; }
+	hdiutil convert $(DMG_WORK).dmg -quiet -ov -format UDZO -imagekey zlib-level=9 -o "$(DMG)"
+	rm -rf $(DMG_WORK) $(DMG_WORK).dmg
+	shasum -a 256 "$(DMG)" > "$(DMG).sha256"

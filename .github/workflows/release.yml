@@ -101,11 +101,8 @@ jobs:
 
       - name: Create the DMG
         run: |
-          mkdir build/dmg
-          cp -R build/JblOnMac.app build/dmg/
-          ln -s /Applications build/dmg/Applications
-          hdiutil create -volname "JBL on Mac" -srcfolder build/dmg -ov -format UDZO "build/JblOnMac-$VERSION.dmg"
-          shasum -a 256 "build/JblOnMac-$VERSION.dmg" > "build/JblOnMac-$VERSION.dmg.sha256"
+          # Copies the app into a copy of InstallerTemplate.dmg, which has the installer window laid out.
+          make dmg DMG="build/JblOnMac-$VERSION.dmg"
 
       - name: Publish the GitHub Release
         env:
