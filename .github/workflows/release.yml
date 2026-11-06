@@ -1,0 +1,120 @@
+name: Release
+
+# Press "Run workflow" on master and pick patch, minor or major. The next version is computed
+# from the latest v* tag, and the tag is created once the build succeeds.
+#
+# The app is ad-hoc signed, not Developer ID signed or notarized, so macOS asks users to
+# approve it on first launch (the README explains how).
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the latest version to increase
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+# One release at a time, so two clicks can't compute the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+      BUMP: ${{ inputs.bump }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Work out the version
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "Releases are made from master, not '$GITHUB_REF_NAME'" >&2
+            exit 1
+          fi
+          # Tags that aren't plain v1.2 or v1.2.3 (for example a prerelease) are ignored.
+          pattern='^v([0-9]+)\.([0-9]+)(\.([0-9]+))?$'
+          latest=$(git tag --list 'v*' | grep -E "$pattern" | sort -V | tail -1 || true)
+          if [[ -z "$latest" ]]; then
+            major=0 minor=0 patch=0
+            latest="(none)"
+          else
+            [[ "$latest" =~ $pattern ]]
+            major=${BASH_REMATCH[1]} minor=${BASH_REMATCH[2]} patch=${BASH_REMATCH[4]:-0}
+          fi
+          case "$BUMP" in
+            major) major=$((major + 1)) minor=0 patch=0 ;;
+            minor) minor=$((minor + 1)) patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          TAG="v$major.$minor.$patch"
+          # The first release is v1.0.0 whatever the bump, because there is nothing to bump.
+          if [[ "$latest" == "(none)" ]]; then TAG="v1.0.0"; fi
+          if git rev-parse -q --verify "refs/tags/$TAG" > /dev/null; then
+            echo "Tag $TAG already exists" >&2
+            exit 1
+          fi
+          echo "Latest release: $latest, $BUMP bump gives $TAG"
+          {
+            echo "TAG=$TAG"
+            echo "VERSION=${TAG#v}"
+          } >> "$GITHUB_ENV"
+          echo "### Version $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive
+        run: |
+          mkdir -p build
+          set -o pipefail
+          # Ad-hoc signing ("-") still embeds the sandbox and Bluetooth entitlements.
+          xcodebuild archive \
+            -project JblOnMac.xcodeproj -scheme JblOnMac -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/JblOnMac.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM= \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            | tee build/archive.log
+          cp -R build/JblOnMac.xcarchive/Products/Applications/JblOnMac.app build/JblOnMac.app
+
+      - name: Verify the app
+        run: |
+          codesign --verify --deep --strict --verbose=2 build/JblOnMac.app
+          codesign --display --entitlements - build/JblOnMac.app
+          version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/JblOnMac.app/Contents/Info.plist)
+          [[ "$version" == "$VERSION" ]] || { echo "Built version $version, expected $VERSION" >&2; exit 1; }
+
+      - name: Create the DMG
+        run: |
+          mkdir build/dmg
+          cp -R build/JblOnMac.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          hdiutil create -volname "JBL on Mac" -srcfolder build/dmg -ov -format UDZO "build/JblOnMac-$VERSION.dmg"
+          shasum -a 256 "build/JblOnMac-$VERSION.dmg" > "build/JblOnMac-$VERSION.dmg.sha256"
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > build/notes.md <<'EOF'
+          **This build is not notarized by Apple.** macOS will block it the first time you open it. See [Download](https://github.com/aimpr0xy/jbl-on-mac#download) in the README for how to approve it.
+
+          EOF
+          # Creates the tag on the commit that was built.
+          gh release create "$TAG" --target "$GITHUB_SHA" --generate-notes --notes-file build/notes.md --title "$TAG" \
+            "build/JblOnMac-$VERSION.dmg" "build/JblOnMac-$VERSION.dmg.sha256"
