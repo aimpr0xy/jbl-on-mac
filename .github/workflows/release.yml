@@ -45,7 +45,7 @@ jobs:
             exit 1
           fi
           # Scripts/semver.sh explains the rules.
-          TAG=$(make --no-print-directory next-version BUMP="$BUMP")
+          TAG=$(Scripts/semver.sh "$BUMP")
           {
             echo "TAG=$TAG"
             echo "VERSION=${TAG#v}"
@@ -56,10 +56,10 @@ jobs:
         run: make archive VERSION="$VERSION" BUILD_NUMBER="$BUILD_NUMBER"
 
       - name: Verify the app
-        run: make verify-app VERSION="$VERSION"
+        run: Scripts/codesign.sh build/JblOnMac.app "$VERSION"
 
       - name: Create the DMG
-        run: make dmg DMG="build/JblOnMac-$VERSION.dmg"
+        run: Scripts/hdiutil.sh InstallerTemplate.dmg build/JblOnMac.app "build/JblOnMac-$VERSION.dmg"
 
       - name: Publish the GitHub Release
         env:

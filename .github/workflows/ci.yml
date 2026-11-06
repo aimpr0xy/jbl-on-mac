@@ -1,0 +1,105 @@
+name: CI
+
+# The same steps as `make check`. SwiftLint, SwiftFormat and ShellCheck need no Apple frameworks, so
+# they run on Linux. The macOS job compiles once and runs the tests, the SwiftLint analyzer rules and
+# Periphery on that build.
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Pinned tool versions. To bump one, change its version and its SHA-256 (the `digest` of the release
+# asset, from `gh api repos/<owner>/<repo>/releases/tags/<version>`).
+env:
+  SWIFTLINT_VERSION: "0.65.1"
+  SWIFTLINT_SHA256: c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0
+  SWIFTFORMAT_VERSION: "0.64.5"
+  SWIFTFORMAT_SHA256: 56c50d955903cfedbe28996a70e7551a873cdb6dfa5e416d9332925c455ab365
+  SHELLCHECK_VERSION: "0.11.0"
+  SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+  PERIPHERY_VERSION: "3.8.0"
+  PERIPHERY_SHA256: 07d4e286e31dd79164df39097e0b59f533c94badbe18158464a455ea88a166d7
+
+jobs:
+  swiftlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      # Keep in step with SWIFTLINT_VERSION.
+      image: ghcr.io/realm/swiftlint:0.65.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: SwiftLint
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+  swiftformat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SwiftFormat
+        run: >-
+          Scripts/install-tool.sh
+          "https://github.com/nicklockwood/SwiftFormat/releases/download/$SWIFTFORMAT_VERSION/swiftformat_linux.zip"
+          "$SWIFTFORMAT_SHA256" ~/tools/swiftformat
+      - name: SwiftFormat --lint
+        run: ~/tools/swiftformat/swiftformat_linux --lint .
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: |
+          Scripts/install-tool.sh \
+            "https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK_VERSION/shellcheck-v$SHELLCHECK_VERSION.linux.x86_64.tar.gz" \
+            "$SHELLCHECK_SHA256" ~/tools/shellcheck
+          echo "$HOME/tools/shellcheck" >> "$GITHUB_PATH"
+      - name: ShellCheck
+        run: make shellcheck
+
+  macos:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Install SwiftLint and Periphery
+        run: |
+          Scripts/install-tool.sh \
+            "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/portable_swiftlint.zip" \
+            "$SWIFTLINT_SHA256" ~/tools/swiftlint
+          Scripts/install-tool.sh \
+            "https://github.com/peripheryapp/periphery/releases/download/$PERIPHERY_VERSION/periphery-$PERIPHERY_VERSION.zip" \
+            "$PERIPHERY_SHA256" ~/tools/periphery
+          echo "$HOME/tools/swiftlint" >> "$GITHUB_PATH"
+          echo "$HOME/tools/periphery" >> "$GITHUB_PATH"
+      - name: Build
+        id: build
+        run: make build
+      - name: Test
+        id: test
+        run: make test COVERAGE=NO
+      # The analyzer needs the build's compiler log and Periphery the test build's index store, so
+      # they run whenever those steps succeeded, even when a test failed.
+      - name: SwiftLint analyzer rules
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: make analyze
+      - name: Periphery
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: make periphery
+      - name: Upload logs and test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-results
+          path: |
+            build/*.log
+            build/tests.xcresult
